@@ -32,7 +32,7 @@ print(net.predict(x))                                                    # token
 🎬 <a href="docs/qwentensor_demo.mp4"><b>Watch the 1:42 demo video</b></a> (hero, program memory, shift requantize)</p>
 
 **📍 Status.** The frontend, quantizer and bit-exact numpy golden are done. The executor reproduces the golden bit-for-bit on a **CPU simulator of the circuit**
-(qwenTPU's float64 circuit-IR evaluator). On the real model, **four programs have been run**. First, the quantized digits MLP 15-15-10 (u5s5, shifts 2 and 4) on
+(qwenTPU's float64 circuit-IR evaluator). On the real model, **five programs have been run**. First, the quantized digits MLP 15-15-10 (u5s5, shifts 2 and 4) on
 Qwen3.5-0.8B (A100, bf16): 20 held-out digits x 2 readouts (code bits and lm_head) = 40/40 exact, emitted tokens equal to the numpy token golden and outputs equal
 to `reference.run` (prompt 434 tokens, 50 emitted, 9 chip layers, hidden 3072, vocab 17616; 95% argmax accuracy on those 20 digits). The host did only `argmax; append`.
 Log: [results/a100_digits.log](results/a100_digits.log).
@@ -46,7 +46,28 @@ Second, **one compiled 14-layer model** (Spec rows=16, cols=(15,12,8), fan 2, sm
 | random 4-layer MLP 8-5-5-5-4 | 6/6 | 259 | 38 |
 | residual block (concat, identity rows) | 6/6 | 222 | 28 |
 
-Log: [results/a100_general.log](results/a100_general.log). The deep MLP and the CNN below, and the frontend's residual MLP 64-32-[32+res]-10, have not run on the real model.
+Log: [results/a100_general.log](results/a100_general.log).
+Third, a **residual MLP 15-10-[10+res]-10** (the `examples/run_residual.py` network: concat plus identity rows, 40 ops over 4 tiles, 16 chip layers, hidden 4608, vocab 37184) on the same
+0.8B: 20 digits x 2 readouts = 40/40 exact, prompt 685 tokens, 80 emitted, 90% argmax accuracy on those 20 digits
+([results/a100_residual_q08.log](results/a100_residual_q08.log)). The frontend's 64-32-[32+res]-10 residual MLP does not fit (`DoesNotFit`), and neither do the deep MLP and the CNN below.
+
+**Bigger models.** The same two programs ran bit-exact on Qwen3.5-2B and 4B (A100, bf16); only the hidden size changes with the model:
+
+| model | digits MLP (40 runs) | general, 4 programs (24 runs) | hidden (digits / general) | logs |
+|---|---|---|---|---|
+| 0.8B | 40/40 | 24/24 | 3072 / 3712 | [digits](results/a100_digits.log), [general](results/a100_general.log) |
+| 2B | 40/40 | 24/24 | 4096 / 4864 | [digits](results/a100_digits_q2.log), [general](results/a100_general_q2.log) |
+| 4B | 40/40 | 24/24 | 4608 / 5376 | [digits](results/a100_digits_q4.log), [general](results/a100_general_q4.log) |
+
+**Throughput** (0.8B, A100, digits MLP, 20 inputs, host loop = `argmax; append`, one cache, 434-token prompt, 50 emitted tokens; all 20 exact in both modes,
+[log](results/a100_throughput_q08.log)). The CUDA-graph chip path is qwenTPU's `GraphedChip`:
+
+| chip path | prefill | emitted-token loop | end to end |
+|---|---|---|---|
+| eager | 24 ms | 657 ms = 76 tok/s (13.1 ms/token) | 681 ms (1.47 inferences/s) |
+| CUDA graph | 102 ms | 163 ms = 307 tok/s (3.25 ms/token) | 265 ms (3.78 inferences/s) |
+
+The graph path is 4.0x faster per emitted token and 2.6x faster per inference; its prefill is slower because it also captures the prompt shapes.
 See [docs/EXECUTOR.md](docs/EXECUTOR.md) section 7.
 
 ## 🔀 How it differs from qwenTPU
@@ -141,7 +162,7 @@ Authoritative table: [docs/IR.md](docs/IR.md) section 3.
 * **No loops, no data-dependent branches, no early exit.** Registers are single-assignment.
 * **Wide first layers are not solved.** A neuron may read at most `fan * (rows - 1)` inputs (K tiling adds exact counts inside one adder tree, no digit tokens); a 784-wide input layer does not fit.
 * **No weight streaming**: all weights are resident. **Unsigned interior activations**; final logits are relu-clamped to 0..31.
-* **Small programs only on the real Qwen3.5.** The largest machine run there is 14 chip layers, 40 ops, vocab 26616; the deep MLP and CNN do not fit.
+* **Small programs only on the real Qwen3.5.** The largest machine runs there are 16 chip layers, 40 ops, vocab 37184 (residual MLP 15-10-[10+res]-10) and 14 chip layers, vocab 26616 (general); the deep MLP, the CNN and the 64-32-[32+res]-10 residual MLP do not fit.
 
 ## 📊 Results (540 held-out sklearn digits, seeds fixed, `python examples/<name>.py`)
 
@@ -157,7 +178,7 @@ samples taken from the training split; "+QAT" = STE fine-tuning of the integer w
 
 Executor status per row: only the digits MLP has been compiled and run through the machine with its real quantized weights (tests, shifts 2 and 4: output equal to
 `reference.run` in the circuit simulator, and exact on the real Qwen3.5-0.8B on an A100, in both the 9-layer and the 14-layer machine). The other three are quantizer results; the deep MLP (202 neurons) and the CNN (every conv position is a neuron set) exceed the
-~100 neuron ceiling, and the frontend's residual MLP 64-32-[32+res]-10 has not been run through the executor. A residual *block* (concat plus identity rows) did run on the real model, but that is a different, smaller program. The other three rows have not run on the real model.
+~100 neuron ceiling, and the frontend's residual MLP 64-32-[32+res]-10 has not been run through the executor. A smaller residual MLP (15-10-[10+res]-10) and a residual block (concat plus identity rows) did run on the real model, but those are different, smaller programs. The other three rows have not run on the real model.
 
 Honest reading of the losses:
 
@@ -186,11 +207,11 @@ Held-out sklearn digits (540). Machine accuracy is only measured for the digits 
 | residual variant, width 10 on the 15 pooled features | 40 | yes | first 3 digits only | 0.8685 / 0.8426 / not measured |
 | CNN variant 4x4 input, conv3x3 1->2 ch + fc | 42 | yes | first 3 digits only | 0.9185 / 0.8722 / not measured |
 
-The variants' float / int accuracy is from `reference.run` on all 540 digits; their machine accuracy was not measured. All of the above is the CPU simulator. Real-model claims are only the two A100 logs in Status.
+The variants' float / int accuracy is from `reference.run` on all 540 digits; their machine accuracy was not measured. All of the above is the CPU simulator. Real-model claims are only the A100 logs in Status.
 
 ## 🔭 Where the model run is still open
 
-* `scripts/gpu_run.py digits` and `general` are done (see Status). Still open on the real model: the frontend's residual MLP, anything beyond about 40 ops / 100 neurons, other Qwen3.5 sizes (only 0.8B was run), and a throughput measurement.
+* `scripts/gpu_run.py digits`, `general`, `residual` and `throughput` are done on 0.8B, and `digits` and `general` also on 2B and 4B (see Status). Still open on the real model: anything beyond about 40 ops / 100 neurons, the 64-32-[32+res]-10 residual MLP, and throughput on 2B and 4B.
 * Not covered by the IR and how it could be: [docs/DESIGN.md](docs/DESIGN.md) section 10.
 
 ## 🙏 Credits and license

@@ -1,0 +1,6 @@
+[residual] model 0.8B (/home/ubuntu/qwentpu_gpu/q08)
+[residual] Spec(rows=16, cols=(10, 20, 20, 0), ab=5, wb=5, nops=40, fan=2, smax=4)
+[residual] chip layers 16 hidden 4608 vocab 37184 build 42s
+[residual] residual MLP 15-10-res10-10 (u5s5, concat + identity rows): 40/40 exact (emitted tokens == numpy token golden AND outputs == reference.run); prompt 685 tok, emitted 80; 75.8s
+argmax acc on these 20: 0.9
+TOTAL BAD 0

@@ -1,0 +1,8 @@
+[general] model 4B (/home/ubuntu/qwentpu_gpu/q4)
+[general] Spec(rows=16, cols=(15, 12, 8), ab=5, wb=5, nops=40, fan=2, smax=7)
+[general] chip layers 14 hidden 5376 vocab 26616 build 34s
+[general] digits MLP 15-15-10: 6/6 exact (emitted tokens == numpy token golden AND outputs == reference.run); prompt 459 tok, emitted 50; 7.3s
+[general] random MLP 20-8-4 (K=20 spans 2 tiles): 6/6 exact (emitted tokens == numpy token golden AND outputs == reference.run); prompt 282 tok, emitted 24; 3.4s
+[general] random 4-layer 8-5-5-5-4: 6/6 exact (emitted tokens == numpy token golden AND outputs == reference.run); prompt 259 tok, emitted 38; 5.0s
+[general] residual block (concat, identity rows): 6/6 exact (emitted tokens == numpy token golden AND outputs == reference.run); prompt 222 tok, emitted 28; 3.7s
+TOTAL BAD 0

@@ -1,0 +1,4 @@
+[throughput] model 0.8B Spec(rows=16, cols=(15, 10, 0), ab=5, wb=5, nops=25, fan=1, smax=4)
+[throughput] eager chip path: exact 20/20; prompt 434 tok, emitted 50 tok; prefill 24.1 ms; emitted-token loop 657.1 ms = 76.1 tok/s (13.14 ms/token); end-to-end 681.2 ms per inference (1.47 inf/s)
+[throughput] CUDA-graph chip path: exact 20/20; prompt 434 tok, emitted 50 tok; prefill 102.1 ms; emitted-token loop 162.7 ms = 307.3 tok/s (3.25 ms/token); end-to-end 264.8 ms per inference (3.78 inf/s)
+TOTAL BAD 0

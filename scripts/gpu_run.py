@@ -1,5 +1,6 @@
 """Run the executor on the real merged Qwen3.5 (A100).  Host = generate(): argmax; append.  Everything else is in the model.
-usage: python scripts/gpu_run.py <phase>   phase: digits | general"""
+usage: python scripts/gpu_run.py <phase>   phase: digits | general | residual | throughput
+env: QWEN_DIR = checkpoint dir (default 0.8B), QWENTPU_SRC = qwenTPU repo, TAG = label printed in the log"""
 import os, sys, time
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path[:0] = [os.path.join(HERE, ".."), os.environ.get("QWENTPU_SRC", os.path.join(HERE, "..", "..", "qwentpu_src"))]
@@ -14,6 +15,7 @@ from qwentensor.machine.sched import compile_graph, DoesNotFit
 from qwentensor.machine.spec import Spec
 
 SRC = os.environ.get("QWEN_DIR", "/home/ubuntu/qwentpu_gpu/q08")
+TAG = os.environ.get("TAG", os.path.basename(SRC.rstrip("/")))
 DATA = os.path.join(HERE, "..", "qwentensor", "machine", "data")
 bad = 0
 
@@ -43,7 +45,7 @@ def run_programs(tag, sp, items, readouts=("code",), model_cache={}):
     t0 = time.time()
     tc, sd, v0, lay, g = build_merged(SRC, mute_qwen=False)
     model = instantiate(tc, sd, "cuda")
-    print(f"[{tag}] {sp}\n[{tag}] chip layers {g.n_layers()} hidden {lay.hidden} vocab {sp.nvocab} build {time.time()-t0:.0f}s", flush=True)
+    print(f"[{tag}] model {TAG} ({SRC})\n[{tag}] {sp}\n[{tag}] chip layers {g.n_layers()} hidden {lay.hidden} vocab {sp.nvocab} build {time.time()-t0:.0f}s", flush=True)
     for name, comp, xs in items:
         ok = 0; n = 0; t1 = time.time(); ntok = 0
         for xq in xs:
@@ -82,4 +84,39 @@ elif phase == "general":
         xs = [x for x in z["xq"][:6]] if gr is gd else [rng.integers(0, 32, gr.input.out_len) for _ in range(6)]
         items.append((name, comp, xs))
     run_programs("general", sp, items, readouts=("code",))
+elif phase == "residual":
+    g = Graph.load(os.path.join(HERE, "data", "residual_v21.json")); comp = compile_graph(g, rows=16)
+    z = np.load(os.path.join(HERE, "data", "residual_samples_v21.npz")); xs = z["xq"][:20]
+    run_programs("residual", comp.spec, [("residual MLP 15-10-res10-10 (u5s5, concat + identity rows)", comp, list(xs))], readouts=("code", "lm_head"))
+    out = np.stack([R.run(g, x[None])[0] for x in xs]); print("argmax acc on these 20:", (out.argmax(1) == z["y"][:20]).mean())
+elif phase == "throughput":
+    g = Graph.load(os.path.join(DATA, "digits_v21.json")); comp = compile_graph(g, rows=16); sp = comp.spec
+    z = np.load(os.path.join(DATA, "digits_samples_v21.npz")); xs = list(z["xq"][:20])
+    install(sp)
+    tc, sd, v0, lay, gg = build_merged(SRC, mute_qwen=False)
+    model = instantiate(tc, sd, "cuda")
+    print(f"[throughput] model {TAG} {sp}", flush=True)
+    sync = torch.cuda.synchronize
+
+    def infer(xq, fast):
+        prog = comp.program(xq); p = prog.prompt(); want = prog.expected()
+        sess = TpuSession(model, v0, fast=fast, readout="code")
+        sync(); t0 = time.perf_counter()
+        nxt = sess.feed(list(p))[-1]; sync(); t1 = time.perf_counter()
+        em = []
+        while nxt != sp.HALT:
+            em.append(nxt); nxt = sess.feed([nxt])[-1]
+        sync(); t2 = time.perf_counter()
+        return em == want and (comp.decode(em) == R.run(comp.graph, np.asarray(xq)[None])[0]).all(), len(p), len(em), t1 - t0, t2 - t1
+
+    for name, fast in (("eager chip path", True), ("CUDA-graph chip path", "graph")):
+        try:
+            for xq in xs[:3]: infer(xq, fast)                      # warm-up (graph capture happens here)
+            rs = [infer(xq, fast) for xq in xs]
+        except Exception as e:
+            print(f"[throughput] {name}: FAILED {type(e).__name__}: {str(e)[:300]}", flush=True); continue
+        ok = sum(r[0] for r in rs); np_, ne = rs[0][1], rs[0][2]
+        pre = np.mean([r[3] for r in rs]); dec = np.mean([r[4] for r in rs])
+        print(f"[throughput] {name}: exact {ok}/{len(rs)}; prompt {np_} tok, emitted {ne} tok; prefill {pre*1e3:.1f} ms; emitted-token loop {dec*1e3:.1f} ms = {ne/dec:.1f} tok/s ({dec/ne*1e3:.2f} ms/token); end-to-end {(pre+dec)*1e3:.1f} ms per inference ({1/(pre+dec):.2f} inf/s)", flush=True)
+        bad += len(rs) - ok
 print("TOTAL BAD", bad)

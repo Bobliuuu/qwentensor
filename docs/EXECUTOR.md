@@ -119,8 +119,11 @@ u5s5 extremes, scheduler incl. concat/gather/groups/bias_rows=2, and the fronten
 GPU (A100, real merged Qwen3.5-0.8B, bf16, host = `generate()` = argmax; append only): `scripts/gpu_run.py digits` ran the quantized digits MLP
 15-15-10 (u5s5, shifts 2 and 4, rows=16 cols=(15,10,0) smax=4, **9 chip layers**, hidden 3072, vocab 17616, 22 s build) on 20 held-out digits with
 both readouts (code bits and lm_head): **40/40 exact** (emitted ids == numpy token golden AND outputs == `reference.run`); prompt 434 tokens, 50
-emitted; 95% argmax accuracy on those 20. Log: `~/qwentensor_run/digits.log` on the box.
-`general` phase: ONE compiled 14-layer model (rows=16, cols=(15,12,8), fan 2, smax 7, 40 ops, hidden 3712, vocab 26616) ran four different programs, 6 inputs each, all **exact (24/24)**: digits MLP 15-15-10; random MLP 20-8-4 (K=20 spans 2 tiles); random 4-layer 8-5-5-5-4; residual block (concat + identity rows). Only the prompt differed.
+emitted; 95% argmax accuracy on those 20. Log: `results/a100_digits.log`.
+`general` phase: ONE compiled 14-layer model (rows=16, cols=(15,12,8), fan 2, smax 7, 40 ops, hidden 3712, vocab 26616) ran four different programs, 6 inputs each, all **exact (24/24)**: digits MLP 15-15-10; random MLP 20-8-4 (K=20 spans 2 tiles); random 4-layer 8-5-5-5-4; residual block (concat + identity rows). Only the prompt differed. Log: `results/a100_general.log`.
+`residual` phase: the residual MLP 15-10-[10+res]-10 (`scripts/make_residual.py`; concat + identity rows, 40 ops over 4 tiles, 16 chip layers, hidden 4608, vocab 37184) on the same 0.8B, 20 digits x 2 readouts: **40/40 exact**, prompt 685 tokens, 80 emitted. Log: `results/a100_residual_q08.log`.
+Model sizes: `digits` and `general` with `QWEN_DIR` set to the 2B and 4B checkpoints are **40/40 and 24/24 exact** on both (hidden 4096 / 4864 on 2B, 4608 / 5376 on 4B). Logs: `results/a100_{digits,general}_q{2,4}.log`.
+`throughput` phase (0.8B, digits MLP, 20 inputs, host loop only, all exact): eager chip path 24 ms prefill + 657 ms for 50 emitted tokens (76 tok/s), 681 ms per inference; CUDA-graph chip path (`TpuSession(fast="graph")`, qwenTPU `GraphedChip`) 102 ms prefill + 163 ms (307 tok/s), 265 ms per inference. Log: `results/a100_throughput_q08.log`.
 
 ## 8. Remaining unsolved (summary)
 loops / data-dependent branches / early exit; neurons with more than `fan*(rows-1)` inputs (no activation RAM, no digit-token carry across

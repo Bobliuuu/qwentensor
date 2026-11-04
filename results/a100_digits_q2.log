@@ -1,0 +1,6 @@
+[digits] model 2B (/home/ubuntu/qwentpu_gpu/q2)
+[digits] Spec(rows=16, cols=(15, 10, 0), ab=5, wb=5, nops=25, fan=1, smax=4)
+[digits] chip layers 9 hidden 4096 vocab 17616 build 24s
+[digits] digits MLP 15-15-10 (u5s5, shifts 2,4): 40/40 exact (emitted tokens == numpy token golden AND outputs == reference.run); prompt 434 tok, emitted 50; 28.6s
+argmax acc on these 20: 0.95
+TOTAL BAD 0
