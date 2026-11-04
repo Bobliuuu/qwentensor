@@ -1,0 +1,85 @@
+"""Run the executor on the real merged Qwen3.5 (A100).  Host = generate(): argmax; append.  Everything else is in the model.
+usage: python scripts/gpu_run.py <phase>   phase: digits | general"""
+import os, sys, time
+HERE = os.path.dirname(os.path.abspath(__file__))
+sys.path[:0] = [os.path.join(HERE, ".."), os.environ.get("QWENTPU_SRC", os.path.join(HERE, "..", "..", "qwentpu_src"))]
+import numpy as np, torch
+from qwentpu.merge import build_merged, instantiate
+from qwentpu.driver import TpuSession
+from qwentensor import reference as R
+from qwentensor.ir import Graph, Node
+from qwentensor.machine.gpu import install
+from qwentensor.machine.run import generate
+from qwentensor.machine.sched import compile_graph, DoesNotFit
+from qwentensor.machine.spec import Spec
+
+SRC = os.environ.get("QWEN_DIR", "/home/ubuntu/qwentpu_gpu/q08")
+DATA = os.path.join(HERE, "..", "qwentensor", "machine", "data")
+bad = 0
+
+
+def rand_graph(rng, dims, shifts, ab=5, wb=5, residual=False, bias_rows=1):
+    nodes = [Node("x", "input", [], dims[0])]; prev, plen = "x", dims[0]
+    for i, (n, sh) in enumerate(zip(dims[1:], shifts)):
+        W = rng.integers(-3, 4, (plen, n)); b = rng.integers(-8, 8, n)
+        nodes.append(Node(f"fc{i}", "matvec", [prev], n, W=W, b=b, shift=sh)); prev, plen = f"fc{i}", n
+    return Graph(nodes, prev, ab=ab, wb=wb, profile="v2.1", bias_rows=bias_rows)
+
+
+def residual_graph(rng, w=7, ab=5, wb=5):
+    nodes = [Node("x", "input", [], w)]
+    nodes.append(Node("fc0", "matvec", ["x"], w, W=rng.integers(-3, 4, (w, w)), b=rng.integers(-8, 8, w), shift=3))
+    nodes.append(Node("cat", "concat", ["fc0", "x"], 2 * w))
+    W = np.concatenate([rng.integers(-3, 4, (w, w)), np.zeros((w, w), int)])
+    for i in range(w): W[w + i, i] = 8                                # identity rows for the residual input x (scaled by 2^shift)
+    nodes.append(Node("fc1", "matvec", ["cat"], w, W=W, b=rng.integers(-8, 8, w), shift=3))
+    return Graph(nodes, "fc1", ab=ab, wb=wb, profile="v2.1")
+
+
+def run_programs(tag, sp, items, readouts=("code",), model_cache={}):
+    """items: [(name, comp, [xq...])].  ONE compiled model for all of them."""
+    global bad
+    install(sp)
+    t0 = time.time()
+    tc, sd, v0, lay, g = build_merged(SRC, mute_qwen=False)
+    model = instantiate(tc, sd, "cuda")
+    print(f"[{tag}] {sp}\n[{tag}] chip layers {g.n_layers()} hidden {lay.hidden} vocab {sp.nvocab} build {time.time()-t0:.0f}s", flush=True)
+    for name, comp, xs in items:
+        ok = 0; n = 0; t1 = time.time(); ntok = 0
+        for xq in xs:
+            prog = comp.program(xq); p = prog.prompt(); want = prog.expected()
+            ref = R.run(comp.graph, np.asarray(xq)[None])[0]
+            for ro in readouts:
+                sess = TpuSession(model, v0, fast=True, readout=ro)
+                em = generate(sess.feed, p, sp.HALT)
+                good = em == want and (comp.decode(em) == ref).all()
+                ok += good; n += 1; ntok += len(em)
+                if not good: print("MISMATCH", name, ro, flush=True)
+        bad += n - ok
+        print(f"[{tag}] {name}: {ok}/{n} exact (emitted tokens == numpy token golden AND outputs == reference.run); prompt {len(p)} tok, emitted {len(want)}; {time.time()-t1:.1f}s", flush=True)
+    del model; torch.cuda.empty_cache()
+    return g
+
+
+phase = sys.argv[1]
+if phase == "digits":
+    g = Graph.load(os.path.join(DATA, "digits_v21.json")); comp = compile_graph(g, rows=16)
+    z = np.load(os.path.join(DATA, "digits_samples_v21.npz")); xs = z["xq"][:20]
+    gm = run_programs("digits", comp.spec, [("digits MLP 15-15-10 (u5s5, shifts 2,4)", comp, list(xs))], readouts=("code", "lm_head"))
+    out = np.stack([R.run(g, x[None])[0] for x in xs]); print("argmax acc on these 20:", (out.argmax(1) == z["y"][:20]).mean())
+elif phase == "general":
+    sp = Spec(rows=16, cols=(15, 12, 8), ab=5, wb=5, nops=40, fan=2, smax=7)
+    rng = np.random.default_rng(1)
+    gd = Graph.load(os.path.join(DATA, "digits_v21.json"))
+    graphs = [("digits MLP 15-15-10", gd), ("random MLP 20-8-4 (K=20 spans 2 tiles)", rand_graph(rng, [20, 8, 4], [3, 2])),
+              ("random 4-layer 8-5-5-5-4", rand_graph(rng, [8, 5, 5, 5, 4], [2, 2, 3, 1], bias_rows=1)),
+              ("residual block (concat, identity rows)", residual_graph(rng))]
+    items = []
+    z = np.load(os.path.join(DATA, "digits_samples_v21.npz"))
+    for name, gr in graphs:
+        try: comp = compile_graph(gr, rows=16, spec_override=sp)
+        except DoesNotFit as e: print("SKIP", name, e); continue
+        xs = [x for x in z["xq"][:6]] if gr is gd else [rng.integers(0, 32, gr.input.out_len) for _ in range(6)]
+        items.append((name, comp, xs))
+    run_programs("general", sp, items, readouts=("code",))
+print("TOTAL BAD", bad)

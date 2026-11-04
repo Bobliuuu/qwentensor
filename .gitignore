@@ -1,0 +1,15 @@
+__pycache__/
+.pytest_cache/
+*.pyc
+*.egg-info/
+build/
+dist/
+.venv/
+.DS_Store
+*.safetensors
+*.pt
+results/raw/
+.env
+viz/out/stills/
+viz/data/scratch/
+viz/node_modules/
