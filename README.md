@@ -28,8 +28,6 @@ print(net.predict(x))                                                    # token
 * ✅ bit-exact vs a numpy golden on a real Qwen3.5-0.8B (A100): **40/40** digits MLP, **24/24** across four different programs
 * 🤖 the host does only `argmax; append`
 
-<p align="center"><video src="https://github.com/Bobliuuu/qwentensor/raw/main/docs/qwentensor_demo.mp4" controls muted width="100%"></video></p>
-
 <p align="center"><a href="docs/qwentensor_demo.mp4"><img src="docs/anim/hero.gif" alt="a PyTorch network compiled to a prompt that Qwen3.5 executes" width="100%"></a><br>
 🎬 <a href="docs/qwentensor_demo.mp4"><b>Watch the 1:42 demo video</b></a> (hero, program memory, shift requantize)</p>
 
