@@ -11,7 +11,7 @@ dependencies = ["numpy", "torch>=2.1"]
 
 [project.optional-dependencies]
 dev = ["pytest", "scikit-learn"]
-qwentpu = ["qwentpu"]   # pip install -e ~/qwentpu_src/qwentpu  (needed only by qwentensor.machine)
+qwentpu = ["qwentpu @ git+https://github.com/Bobliuuu/qwentpu.git"]   # needed by qwentensor.machine
 
 [tool.setuptools.packages.find]
 include = ["qwentensor*"]
