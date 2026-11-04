@@ -46,7 +46,7 @@ class Compiled:
     def program(self, xq):
         """Program for one ENCODED integer input vector (host: layout + register init only)."""
         xq = np.asarray(xq, dtype=np.int64).reshape(-1)
-        assert len(xq) == len(self.in_regs) and 0 <= xq.min() and xq.max() <= self.spec.amax
+        assert len(xq) == len(self.in_regs) and (xq.size == 0 or (0 <= xq.min() and xq.max() <= self.spec.amax))
         init = {r: 1 for r in self.const_regs}
         init.update({r: int(v) for r, v in zip(self.in_regs, xq) if v})
         return Program(self.spec, dict(self.W), dict(self.ops), list(self.order), init, self.entry)
@@ -70,7 +70,6 @@ def compile_graph(g, rows=16, spec_override=None, nops=None, smax=None, fan=None
     """Build the Spec (sized for this graph unless `spec_override` is given) and the program skeleton."""
     g.validate(machine=True)
     br = g.bias_rows; dr = rows - br; assert dr >= 1
-    lo, hi = g.wlo, g.whi
     counter = [0]
 
     def new_reg():
@@ -99,7 +98,16 @@ def compile_graph(g, rows=16, spec_override=None, nops=None, smax=None, fan=None
                     neurons.append(Neuron(f"{node.name}[{p},{n}]", wts, int(node.b[n]), node.shift, d))
             vals[node.name] = out
     out_regs = vals[g.output]
-    ntile = max(1, -(-counter[0] // dr))
+    return compile_neurons(g, rows, neurons, in_regs, out_regs, counter[0], spec_override, nops, smax, fan, min_cols)
+
+
+def compile_neurons(g, rows, neurons, in_regs, out_regs, nreg_used, spec_override=None, nops=None, smax=None, fan=None, min_cols=None):
+    """Columns, Spec and the program skeleton for an explicit neuron list.  `g` supplies ab, wb, bias_rows and the weight range
+    (any ir.Graph header; its matvec nodes are not read).  `nreg_used` registers were allocated by the caller in the
+    `(k // dr) * rows + k % dr` pattern (inputs first, then one destination per neuron).  compile_graph and machine.pages use this."""
+    br = g.bias_rows; dr = rows - br; assert dr >= 1
+    lo, hi = g.wlo, g.whi
+    ntile = max(1, -(-nreg_used // dr))
     const_regs = [t * rows + dr + i for t in range(ntile) for i in range(br)]
     # ---- columns: per neuron, one or more columns in every tile it touches; weights beyond [wlo, whi] are split over columns
     used = [0] * ntile; W = {}

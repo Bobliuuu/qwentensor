@@ -14,6 +14,7 @@ from . import frontend, quant, reference as R
 from .ir import Graph
 from .frontend import UnsupportedOpError            # noqa: F401  (re-exported)
 from .machine.sched import compile_graph, DoesNotFit as _SchedDoesNotFit
+from .machine import pages as _pages
 
 MAX_OPS = 128
 MAX_COLS = 126          # circuit.mem_head: one-hot column mask in <= 126 value bits
@@ -187,7 +188,69 @@ class Program:
     def load(path, backend=None):
         with open(path) as f: d = json.load(f)
         if "qwentensor_program" not in d: raise ValueError(f"{path} is not a saved qwentensor Program")
-        return Program(Graph.from_dict(d["graph"]), backend or d["backend"], d["rows"], **d["spec_kw"])
+        kw = dict(d["spec_kw"])
+        if kw.pop("paged", False): return PagedProgram(Graph.from_dict(d["graph"]), backend or d["backend"], d["rows"], **kw)
+        return Program(Graph.from_dict(d["graph"]), backend or d["backend"], d["rows"], **kw)
+
+
+class PagedProgram(Program):
+    """A compiled network larger than one machine: pages of neurons on one shared Spec (docs/STREAMING.md).  Same interface as Program.
+    The model runs every page from its own tokens; the host carries the integer activations between pages."""
+
+    def __init__(self, graph, backend="sim", rows=16, float_graph=None, verify=True, input_shape=None, max_cols=60, max_ops=60):
+        if backend not in ("sim", "qwen"):
+            raise ValueError(f"backend must be 'sim' or 'qwen', got {backend!r}")
+        self.graph, self.backend, self.rows, self.float_graph, self.verify = graph, backend, rows, float_graph, verify
+        self._spec_kw = dict(paged=True, max_cols=max_cols, max_ops=max_ops)
+        try:
+            self.paged = _pages.compile_paged(graph, rows=rows, max_cols=max_cols, max_ops=max_ops)
+        except _SchedDoesNotFit as e:
+            raise DoesNotFit(f"{e} (paged: max_cols={max_cols}, max_ops={max_ops}). See docs/STREAMING.md section 3.2 for the limits paging does not remove.") from None
+        self.spec = self.paged.spec
+        self._machine = None; self._exec = None
+        self.input_shape = input_shape
+        self.last = {}
+
+    def _executor(self):
+        if self._exec is None:
+            if self.backend == "sim":
+                self._exec = _pages.sim_executor(self.spec)
+            else:
+                self._machine = _QwenMachine(self.spec)
+                self._exec = _pages.model_executor(self.spec, self._machine.feed_fn)
+        return self._exec
+
+    def _execute(self, xq):
+        try:
+            y, sizes = self.paged.run(xq, self._executor())
+        except _pages.PageMismatch as e:
+            raise MachineMismatch(str(e)) from None
+        return y, sum(a for a, _ in sizes), sum(b for _, b in sizes)
+
+    def run(self, x, check=None):
+        y = super().run(x, check)
+        self.last["pages"] = len(self.paged.pages)
+        return y
+
+    def cost(self):
+        sp = self.spec; st = self.paged.stats()
+        return dict(neurons=st["neurons"], ops=st["neurons"], registers=sp.nreg, tiles=sp.tiles, columns=sp.ncols, pages=st["pages"],
+                    weight_cells=sum(st["page_cells"]), page_neurons=st["page_neurons"], page_weight_cells=st["page_cells"], spec=str(sp),
+                    chip_layers=st["layers"], vocab=st["nvocab"])
+
+    def explain(self):
+        g, sp = self.graph, self.spec; c = self.cost()
+        return "\n".join([f"qwentensor PagedProgram  backend={self.backend}  profile={g.profile} u{g.ab}s{g.wb} bias_rows={g.bias_rows}", g.summary(), "",
+                          f"machine (shared by every page): {sp.tiles} tile(s) x {sp.rows} rows, columns/tile {sp.cols}, fan {sp.fan}, nops {sp.nops}, smax {sp.smax}, "
+                          f"{c['chip_layers']} chip layers, vocab {c['vocab']}",
+                          f"program: {c['neurons']} neurons in {c['pages']} pages {c['page_neurons']}, {c['weight_cells']} weight cells in total",
+                          "each page is a fresh prompt (weights, program, inputs); the model emits every op's ACT token (argmax; append) and the host copies "
+                          "the integer outputs into the next page's inputs (docs/STREAMING.md)."])
+
+    def save(self, path):
+        d = self.graph.to_dict()
+        with open(path, "w") as f:
+            json.dump(dict(qwentensor_program=1, backend=self.backend, rows=self.rows, spec_kw=self._spec_kw, graph=d), f)
 
 
 class _QwenMachine:
@@ -210,11 +273,17 @@ class _QwenMachine:
 
 
 def compile(model, calib_data=None, input_shape=None, *, profile="v2.1", backend="sim", labels=None, qat=None, ab=5, wb=5,
-            bias_rows=1, rows=16, input_posneg=False, input_kind="float", input_max=None, verify=True, **spec_kw):
+            bias_rows=1, rows=16, input_posneg=False, input_kind="float", input_max=None, verify=True, paged=False, max_cols=60,
+            max_ops=60, **spec_kw):
     """Compile a torch.nn.Module (or a float/integer ir.Graph) to a machine Program.
     calib_data: samples used for quantization calibration (N, *input_shape).  profile: "v2.1" (shift 0..15) or "v2.0" (no shift).
-    qat: None | True | dict(epochs=..., lr=...) -> STE fine-tune (needs labels)."""
+    qat: None | True | dict(epochs=..., lr=...) -> STE fine-tune (needs labels).
+    paged=True: a network larger than one machine runs as pages of at most max_cols columns / max_ops ops on one shared machine
+    (weight streaming through the prompt; docs/STREAMING.md); returns a PagedProgram with the same interface."""
     fg, g = _to_graph(model, calib_data, input_shape, profile, ab, wb, bias_rows, qat, labels, input_posneg, input_kind, input_max)
+    if paged:
+        if spec_kw: raise TypeError(f"paged=True takes max_cols / max_ops, not {sorted(spec_kw)}")
+        return PagedProgram(g, backend=backend, rows=rows, float_graph=fg, verify=verify, input_shape=input_shape, max_cols=max_cols, max_ops=max_ops)
     return Program(g, backend=backend, rows=rows, float_graph=fg, verify=verify, input_shape=input_shape, **spec_kw)
 
 
