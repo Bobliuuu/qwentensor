@@ -78,4 +78,22 @@ recompiled against it. The circuit is built once as a feasibility check. `DoesNo
 
 ## 4. Verification
 
-Filled in from the runs: see section 5 (CPU circuit simulator) and `results/a100_stream.log` (real Qwen3.5-0.8B).
+**CPU circuit-IR simulator** (`pytest tests/test_machine_stream.py`, 11 tests; the whole suite is 57 passed): random MLPs, a skip connection that survives several
+pages, `gather` + `groups`, a strided CNN, a 142-neuron deep MLP (`DoesNotFit` on one machine) and a 70-neuron residual MLP: the circuit
+and the token golden agree page by page and the result equals `reference.run`. `examples/run_stream.py` on the trained networks: the token golden equals
+`reference.run` on all 540 held-out digits for all three networks; the circuit simulator equals it on 3 digits (deep), 1 digit (residual), 1 digit (CNN).
+
+**Real Qwen3.5-0.8B** (A100, bf16, `python scripts/gpu_run.py stream`, log `results/a100_stream.log`): per digit the host runs the pages in order, each as a
+fresh prompt with `generate()` (argmax; append until HALT), and copies the integer outputs into the next page's inputs. 10 held-out digits x 2 readouts
+(code bits and lm_head) per network; "exact" = every page's emitted tokens equal the numpy token golden and the final outputs equal `reference.run`.
+
+| network | neurons | pages (neurons each) | machine | prompt tokens per page | emitted (10 digits) | exact | wall time, 10 digits, code readout |
+|---|---|---|---|---|---|---|---|
+| residual MLP 44-20-[20+res]-20-10 | 70 | 7 (12 8 16 4 14 6 10) | `cols=(16,16,12,0)`, nops 16, fan 3, smax 5; 15 chip layers, hidden 4352, vocab 28992 | 161-574 | 1400 | 20/20 | 33.6 s |
+| deep MLP 44-44-44-44-10 | 142 | 10 (15 15 14 15 15 14 15 15 14 10) | `cols=(15,15,15,0)`, nops 15, fan 3, smax 5; 15 chip layers, hidden 4352, vocab 29279 | 529-749 | 2840 | 20/20 | 65.8 s |
+| strided CNN 1x8x8 | 426 | 36 | `cols=(18,10,8,4,2)`, nops 26, fan 3, smax 5; 15 chip layers, hidden 4096, vocab 31872 | 157-452 | 8520 | 20/20 | 200.3 s |
+
+1060 page runs in total, 0 mismatches. Wall times are on an A100 shared with other jobs. The integer accuracy of the three networks on all 540 held-out digits is 0.9704
+(residual), 0.9648 (deep) and 0.9574 (CNN) (float 0.9722, 0.9722, 0.9685); the real model was run on the first 10 digits of the held-out split.
+
+What the real-model runs do not show: a machine larger than 45 columns, any neuron reading more than 45 inputs, in-model weight streaming.
