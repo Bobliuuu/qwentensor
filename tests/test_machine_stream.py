@@ -131,3 +131,16 @@ def test_api_paged_torch_model_bit_exact_and_roundtrip(tmp_path):
     prog.save(tmp_path / "p.json"); again = qt.load(str(tmp_path / "p.json"))
     assert isinstance(again, qt.PagedProgram) and (again.reference(X[:2]) == prog.reference(X[:2])).all()
     with pytest.raises(TypeError): qt.compile(model, X, input_shape=(20,), paged=True, fan=3)
+
+
+def test_strided_cnn_in_pages():
+    """Every neuron reads <= 45 inputs (im2col windows), 112 neurons: more than the 126-column machine could hold at once."""
+    torch.manual_seed(0); rng = np.random.default_rng(0)
+    model = nn.Sequential(nn.Conv2d(1, 2, 3, padding=1), nn.ReLU(), nn.Conv2d(2, 4, 3, stride=2, padding=1), nn.ReLU(), nn.Flatten(), nn.Linear(36, 4)).double().eval()
+    X = rng.random((64, 1, 6, 6))
+    prog = qt.compile(model, X, input_shape=(1, 6, 6), paged=True, max_cols=30, max_ops=40)
+    assert sum(len(p.neurons) for p in prog.paged.pages) == 112 and len(prog.paged.pages) >= 4 and prog.spec.ncols <= 126
+    xq = prog.encode(X[:4]); ref = R.run(prog.graph, xq)
+    ex = golden_executor()
+    assert all((prog.paged.run(x, ex)[0] == r).all() for x, r in zip(xq, ref))
+    assert (prog.run(X[:1], check=True) == ref[:1]).all()                      # the circuit simulator, every page

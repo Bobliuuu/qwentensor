@@ -122,12 +122,18 @@ def _compile_page(g, rows, neurons, spec_override=None):
     return comp, src
 
 
-def compile_paged(g, rows=16, max_cols=60, max_ops=60):
-    """Cut `g` (an integer machine Graph) into pages of at most `max_cols` physical columns and `max_ops` ops; return PagedCompiled.
-    DoesNotFit names the limit that failed (a single neuron too wide for the circuit, columns, ops, the 126-column mask head)."""
-    g.validate(machine=True)
-    per_node, in_keys, out_keys = _elements(g)
-    max_ops = min(max_ops, 128)
+def fan_cap(g, rows, smax):
+    """Largest `fan` (columns summed by one op) for which the machine circuit builds at this row count, bit widths and max shift."""
+    cap = 0
+    for f in range(1, 17):
+        try: build(Spec(rows=rows, cols=(1,) * f, ab=g.ab, wb=g.wb, nops=1, fan=f, smax=smax))
+        except (ValueError, AssertionError): break
+        cap = f
+    return cap
+
+
+def _pack(g, rows, per_node, max_cols, max_ops, fcap, smax_g, tile_caps=None):
+    """Greedy pages per matvec node: the largest prefix of the remaining neurons that fits (monotone in the prefix, found by bisection)."""
     pages = []
     for name, nus in per_node:
         i = 0
@@ -135,21 +141,52 @@ def compile_paged(g, rows=16, max_cols=60, max_ops=60):
             def fits(n):
                 try: comp, _ = _compile_page(g, rows, nus[i:i + n])
                 except DoesNotFit: return False
-                return comp.spec.ncols <= max_cols
+                sp = comp.spec
+                if sp.ncols > max_cols or sp.fan > fcap: return False
+                return tile_caps is None or all(c <= (tile_caps[t] if t < len(tile_caps) else 0) for t, c in enumerate(sp.cols))
             if not fits(1):
                 comp, _ = _compile_page(g, rows, nus[i:i + 1])
-                raise DoesNotFit(f"{nus[i]['name']}: a single neuron needs {comp.spec.ncols} physical columns (fan {comp.spec.fan}); max_cols={max_cols}")
+                if comp.spec.fan > fcap:
+                    raise DoesNotFit(f"{nus[i]['name']}: the neuron reads up to {comp.spec.fan * (rows - g.bias_rows)} registers (fan {comp.spec.fan} at {rows} rows); the circuit "
+                                     f"builds fan <= {fcap} at smax {smax_g} (the requantizer's carry staircase must fit its 256 window: fan*rows <= 48 when shifts reach 5, "
+                                     f"<= 80 when smax <= 4)")
+                raise DoesNotFit(f"{nus[i]['name']}: a single neuron needs columns {comp.spec.cols} (fan {comp.spec.fan}); max_cols={max_cols}, per-tile caps {tile_caps}")
             lo, hi = 1, min(max_ops, len(nus) - i)
             while lo < hi:
                 mid = (lo + hi + 1) // 2
                 if fits(mid): lo = mid
                 else: hi = mid - 1
             pages.append(Page(name, nus[i:i + lo])); i += lo
-    # ---- one shared machine: elementwise maximum of the pages' needs
+    return pages
+
+
+def _shared_spec(g, rows, pages):
+    """One machine for all pages: elementwise maximum of the pages' needs."""
     nat = [_compile_page(g, rows, p.neurons)[0].spec for p in pages]
     tiles = max(s.tiles for s in nat)
     cols = tuple(max([s.cols[t] if t < s.tiles else 0 for s in nat]) for t in range(tiles))
-    spec = Spec(rows=rows, cols=cols, ab=g.ab, wb=g.wb, nops=max(s.nops for s in nat), fan=max(s.fan for s in nat), smax=max(s.smax for s in nat))
+    return Spec(rows=rows, cols=cols, ab=g.ab, wb=g.wb, nops=max(s.nops for s in nat), fan=max(s.fan for s in nat), smax=max(s.smax for s in nat))
+
+
+def compile_paged(g, rows=16, max_cols=60, max_ops=60):
+    """Cut `g` (an integer machine Graph) into pages of at most `max_cols` physical columns and `max_ops` ops; return PagedCompiled.
+    The shared machine has the elementwise maximum of the pages' columns per tile, which can exceed `max_cols` when different pages load
+    different tiles; a second packing pass then caps every tile's columns proportionally.
+    DoesNotFit names the limit that failed (a single neuron too wide for the circuit, columns, ops, the 126-column mask head)."""
+    g.validate(machine=True)
+    per_node, in_keys, out_keys = _elements(g)
+    max_ops = min(max_ops, 128)
+    smax_g = max([n.shift for n in g.matvecs()] + [0]); fcap = fan_cap(g, rows, smax_g)
+    pages = _pack(g, rows, per_node, max_cols, max_ops, fcap, smax_g)
+    spec = _shared_spec(g, rows, pages)
+    if spec.ncols > max_cols and spec.tiles > 1:
+        caps = tuple(max(1, c * max_cols // spec.ncols) if c else 0 for c in spec.cols)
+        try:
+            pages2 = _pack(g, rows, per_node, max_cols, max_ops, fcap, smax_g, tile_caps=caps)
+            spec2 = _shared_spec(g, rows, pages2)
+            if spec2.ncols < spec.ncols: pages, spec = pages2, spec2
+        except DoesNotFit:
+            pass
     if spec.ncols > 126:
         raise DoesNotFit(f"the shared machine needs {spec.ncols} physical columns ({spec.cols}); a program-memory mask head holds at most 126. Lower max_cols.")
     try: build(spec)

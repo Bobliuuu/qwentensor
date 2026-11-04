@@ -40,8 +40,8 @@ def _fit_error(g, e):
     need = f"graph needs {neurons} neurons (one machine op each; limits: {MAX_OPS} ops, {MAX_COLS} physical columns) -> [{_describe_graph(g)}]. Machine said: {e}."
     tips = ("To fit: shrink hidden widths, use fewer layers, make convs smaller (every output position of a conv is a separate "
             "neuron: 8x8 image, 3x3 conv, 4 channels = 256 neurons; use stride/pooling first or a Linear on a downsampled input), "
-            "or widths so each neuron touches fewer register tiles (every tile a neuron reads costs one column). Larger programs need the executor's op-slot limit raised "
-            "(docs/EXECUTOR.md, 'limits').")
+            "or widths so each neuron touches fewer register tiles (every tile a neuron reads costs one column). A network with more neurons than one machine "
+            "can run in pages: qt.compile(..., paged=True) (docs/STREAMING.md); a neuron that reads more than about 45 registers still does not fit.")
     return DoesNotFit(need + " " + tips)
 
 
