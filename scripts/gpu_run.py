@@ -1,5 +1,5 @@
 """Run the executor on the real merged Qwen3.5 (A100).  Host = generate(): argmax; append.  Everything else is in the model.
-usage: python scripts/gpu_run.py <phase>   phase: digits | general"""
+usage: python scripts/gpu_run.py <phase>   phase: digits | general | stream"""
 import os, sys, time
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path[:0] = [os.path.join(HERE, ".."), os.environ.get("QWENTPU_SRC", os.path.join(HERE, "..", "..", "qwentpu_src"))]
@@ -11,6 +11,7 @@ from qwentensor.ir import Graph, Node
 from qwentensor.machine.gpu import install
 from qwentensor.machine.run import generate
 from qwentensor.machine.sched import compile_graph, DoesNotFit
+from qwentensor.machine.pages import compile_paged
 from qwentensor.machine.spec import Spec
 
 SRC = os.environ.get("QWEN_DIR", "/home/ubuntu/qwentpu_gpu/q08")
@@ -61,6 +62,35 @@ def run_programs(tag, sp, items, readouts=("code",), model_cache={}):
     return g
 
 
+def run_stream(tag, g, z, n, readouts, max_cols=45, max_ops=60):
+    """Paged execution of a network larger than one machine: every page is a fresh prompt on the SAME merged model; the host only
+    builds prompts, runs argmax; append, and copies the integer activations between pages (docs/STREAMING.md)."""
+    global bad
+    pc = compile_paged(g, rows=16, max_cols=max_cols, max_ops=max_ops); sp = pc.spec; st = pc.stats()
+    install(sp); t0 = time.time()
+    tc, sd, v0, lay, gg = build_merged(SRC, mute_qwen=False)
+    model = instantiate(tc, sd, "cuda")
+    print(f"[{tag}] {sp}\n[{tag}] {st['neurons']} neurons in {st['pages']} pages {st['page_neurons']}; chip layers {gg.n_layers()} hidden {lay.hidden} "
+          f"vocab {sp.nvocab} build {time.time()-t0:.0f}s", flush=True)
+    for ro in readouts:
+        ok = 0; pages_bad = 0; npages = 0; ntok = 0; t1 = time.time(); plens = []
+        for i in range(n):
+            xq = z["xq"][i]; ref = z["ref"][i]; page_bad = [0]
+
+            def exec_page(prog):
+                em = generate(TpuSession(model, v0, fast=True, readout=ro).feed, prog.prompt(), sp.HALT)
+                if em != prog.expected(): page_bad[0] += 1
+                return em
+            y, sizes = pc.run(xq, exec_page)
+            npages += len(sizes); pages_bad += page_bad[0]; ntok += sum(b for _, b in sizes); plens += [a for a, _ in sizes]
+            good = bool((y == ref).all()) and page_bad[0] == 0; ok += good
+            if not good: print("MISMATCH", tag, ro, "sample", i, flush=True)
+        bad += n - ok
+        print(f"[{tag}] readout {ro}: {ok}/{n} digits exact end to end (every page's emitted tokens == numpy token golden AND final outputs == reference.run); "
+              f"{npages} pages run, {pages_bad} page mismatches; prompt {min(plens)}..{max(plens)} tok, {ntok} tokens emitted; {time.time()-t1:.1f}s", flush=True)
+    del model; torch.cuda.empty_cache()
+
+
 phase = sys.argv[1]
 if phase == "digits":
     g = Graph.load(os.path.join(DATA, "digits_v21.json")); comp = compile_graph(g, rows=16)
@@ -82,4 +112,11 @@ elif phase == "general":
         xs = [x for x in z["xq"][:6]] if gr is gd else [rng.integers(0, 32, gr.input.out_len) for _ in range(6)]
         items.append((name, comp, xs))
     run_programs("general", sp, items, readouts=("code",))
+elif phase == "stream":
+    n = int(os.environ.get("N", 10))
+    for name, title in (("residual", "residual MLP 44-20-[20+res]-20-10"), ("deep", "deep MLP 44-44-44-44-10")):
+        g = Graph.load(os.path.join(DATA, f"stream_{name}.json")); z = np.load(os.path.join(DATA, f"stream_samples_{name}.npz"))
+        print(f"[stream] {title}: integer accuracy of reference.run on all {len(z['y'])} held-out digits = {(z['ref'].argmax(1) == z['y']).mean():.4f}", flush=True)
+        run_stream(f"stream:{name}", g, z, n, readouts=("code", "lm_head"))
+        print(f"[stream] argmax accuracy of the reference outputs on these {n} digits: {(z['ref'][:n].argmax(1) == z['y'][:n]).mean():.2f}", flush=True)
 print("TOTAL BAD", bad)
