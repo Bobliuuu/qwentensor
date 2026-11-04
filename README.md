@@ -123,7 +123,7 @@ Step-by-step (what `compile` does): `frontend.from_torch` -> `quant.quantize(fg,
 
 <p align="center"><img src="viz/images/prompt_layout.png" alt="prompt layout: weights, program and input tokens, then the tokens Qwen emits" width="100%"></p>
 
-Prompt and emitted-token counts vary with the network and the Spec; the diagram shows one digits-MLP build.
+The diagram is the CPU-simulator build of the digits MLP (QAT, shifts 4 and 4, 25 ops, 496-token prompt). The A100 run used a different quantization (shifts 2 and 4) and a 434-token prompt, so the token counts differ (CELL tokens are one per nonzero weight).
 
 <p align="center"><img src="viz/images/quantization.png" alt="float weights to 5-bit integers, accuracy float vs PTQ vs QAT" width="100%"></p>
 

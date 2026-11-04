@@ -13,7 +13,7 @@ def T(x, y, t, sz=24, c="#6b7488", w=600, a="middle", m=False): return f'<text x
 def rect(x, y, w, h, f, c, sw=3, r=16): return f'<rect x="{x}" y="{y}" width="{w}" height="{h}" rx="{r}" fill="{f}" stroke="{c}" stroke-width="{sw}"/>'
 def arr(x1, y1, x2, y2, c="#6b7488"): return f'<line x1="{x1}" y1="{y1}" x2="{x2}" y2="{y2}" stroke="{c}" stroke-width="4" marker-end="url(#a)"/>'
 # ---- prompt layout (proportional to the real token counts)
-p = D["prompt"]; tot = p["total"]; s = head("PROMPT LAYOUT", "digits MLP, real Program.prompt()")
+p = D["prompt"]; tot = p["total"]; s = head("PROMPT LAYOUT", "digits MLP, CPU-simulator build (A100 run: 434 tokens)")
 s += rect(60, 170, 1480, 190, "#fbfcfe", "#dfe4ec", 2, 20) + T(90, 210, f"PROMPT  {tot} tokens, in this order", 24, "#6b7488", 800, "start")
 x = 80; W = 1440
 for lab, n, c, f, sub in [("WEIGHTS (CELL)", p["cell"], O, OL, "one token per nonzero weight"), ("PROGRAM (PROG)", p["prog"], P, PL, "succ, dest, mask, shift"), ("INPUT (ACT)", p["act"], G, GL, "register init")]:
