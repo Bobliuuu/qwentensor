@@ -5,7 +5,7 @@ No GPU kernels. No training. The "program" is just the prompt. 🧬</p>
 
 <p align="center">
 <a href="https://github.com/Bobliuuu/qwentensor/actions"><img src="https://github.com/Bobliuuu/qwentensor/actions/workflows/tests.yml/badge.svg" alt="tests"></a>
-<img src="https://img.shields.io/badge/real%20model-64%2F64%20exact-brightgreen" alt="64/64 exact">
+<img src="https://img.shields.io/badge/real%20model-0%20mismatches-brightgreen" alt="0 mismatches on the real model">
 <img src="https://img.shields.io/badge/bits-5--bit%20ints-blue" alt="5-bit">
 <img src="https://img.shields.io/badge/license-MIT-lightgrey" alt="MIT">
 </p>
@@ -26,7 +26,8 @@ print(net.predict(x))                                                    # token
 * 🔢 5-bit integer weights, per-layer shift requantize
 * 📝 the schedule, successors and masks are **tokens in the prompt**: swap the prompt, swap the program
 * ✅ bit-exact vs a numpy golden on a real Qwen3.5-0.8B (A100): **40/40** digits MLP, **24/24** across four different programs
-* 🤖 the host does only `argmax; append`
+* 🤖 inside one run the host does only `argmax; append`
+* 📄 networks larger than one machine run in **pages** (`paged=True`): a 142-neuron deep MLP and a 426-neuron CNN ran exact on the real model, the host carrying activations between pages
 
 <p align="center"><a href="docs/qwentensor_demo.mp4"><img src="docs/anim/hero.gif" alt="a PyTorch network compiled to a prompt that Qwen3.5 executes" width="100%"></a><br>
 🎬 <a href="docs/qwentensor_demo.mp4"><b>Watch the 1:42 demo video</b></a> (hero, program memory, shift requantize)</p>
@@ -69,6 +70,19 @@ Third, a **residual MLP 15-10-[10+res]-10** (the `examples/run_residual.py` netw
 
 The graph path is 4.0x faster per emitted token and 2.6x faster per inference; its prefill is slower because it also captures the prompt shapes.
 See [docs/EXECUTOR.md](docs/EXECUTOR.md) section 7.
+
+Fourth, **networks larger than one machine run in pages** (weight streaming through the prompt, `qt.compile(..., paged=True)`, [docs/STREAMING.md](docs/STREAMING.md)). A page is
+a normal machine program for a group of neurons; all pages share one machine; every page is a fresh prompt that the model runs from its own tokens (`argmax; append`), and the
+host copies the integer outputs of one page into the next page's input tokens. On the real Qwen3.5-0.8B (A100, bf16), 10 held-out digits x 2 readouts per network, every
+page's emitted tokens equal to the numpy token golden and every final output equal to `reference.run`, **60/60 exact, 1060 page runs, 0 mismatches**:
+
+| network | neurons | pages | machine | prompt tokens per page | emitted (10 digits) | exact |
+|---|---|---|---|---|---|---|
+| residual MLP 44-20-[20+res]-20-10 | 70 | 7 | 44 columns, 15 chip layers, hidden 4352, vocab 28992 | 161-574 | 1400 | 20/20 |
+| deep MLP 44-44-44-44-10 | 142 (> 128 op slots) | 10 | 45 columns, 15 chip layers, hidden 4352, vocab 29279 | 529-749 | 2840 | 20/20 |
+| strided CNN 1x8x8, conv 4, conv 8, conv 8, fc 10 | 426 | 36 | 42 columns, 15 chip layers, hidden 4096, vocab 31872 | 157-452 | 8520 | 20/20 |
+
+Log: [results/a100_stream.log](results/a100_stream.log). Between pages the activations live in the host, so the page sequence is host-driven; inside a page nothing is.
 
 ## 🔀 How it differs from qwenTPU
 
@@ -158,11 +172,10 @@ Authoritative table: [docs/IR.md](docs/IR.md) section 3.
 
 ## ⚠️ Limits
 
-* **Size.** About 100 neurons is the practical ceiling on the 0.8B model (heads grow about 2 per column); at most 128 ops and 126 physical columns. Every conv output position is a separate neuron set (`groups` duplicates the weights), so the 8x8 CNN below is far over that: it is an IR/quantizer example, not a machine one.
+* **Size.** One machine holds at most 128 ops and 126 physical columns (heads grow about 2 per column); the largest machine run on the real model has 45 columns. A network with more neurons than that runs in pages (`paged=True`): weights are resident inside a page, pages are streamed through the prompt, and **the host carries the activations between pages**, so the page sequence is host-driven (in-model streaming is not built, see [docs/STREAMING.md](docs/STREAMING.md)). Every conv output position is a separate neuron set (`groups` duplicates the weights), so a conv layer costs P times the neurons.
 * **No loops, no data-dependent branches, no early exit.** Registers are single-assignment.
-* **Wide first layers are not solved.** A neuron may read at most `fan * (rows - 1)` inputs (K tiling adds exact counts inside one adder tree, no digit tokens); a 784-wide input layer does not fit.
-* **No weight streaming**: all weights are resident. **Unsigned interior activations**; final logits are relu-clamped to 0..31.
-* **Small programs only on the real Qwen3.5.** The largest machine runs there are 16 chip layers, 40 ops, vocab 37184 (residual MLP 15-10-[10+res]-10) and 14 chip layers, vocab 26616 (general); the deep MLP, the CNN and the 64-32-[32+res]-10 residual MLP do not fit.
+* **A neuron reads at most about 45 inputs.** K tiling adds exact counts inside one adder tree (no digit tokens), and the circuit builds `fan * rows` up to 48 when shifts reach 5 (80 when `smax <= 4`). Wide layers do not fit even in pages: the 64-96-64-32-10 deep MLP, the 64-wide residual MLP, the CNN with AvgPool folded into a 512-wide Linear, and any 784-wide input layer. The streamed examples use 44 input pixels and strided convs.
+* **Unsigned interior activations**; final logits are relu-clamped to 0..31.
 
 ## 📊 Results (540 held-out sklearn digits, seeds fixed, `python examples/<name>.py`)
 
@@ -200,18 +213,22 @@ Held-out sklearn digits (540). Machine accuracy is only measured for the digits 
 | network | neurons | fits the machine | machine == `reference.run` | float / int / machine accuracy |
 |---|---|---|---|---|
 | digits MLP 15-15-10 (496-token prompt) | 25 | yes | **540/540 digits** (about 4.1 s/digit under load) | 0.9037 / 0.8944 / 0.8944 |
-| deep MLP 64-96-64-32-10 (the full network above) | 202 | no, `DoesNotFit` | - | - |
-| residual MLP 64-32-[32+res]-10 | 106 (408 columns) | no, `DoesNotFit` | - | - |
-| CNN conv4-conv8-avgpool-fc | 778 | no, `DoesNotFit` | - | - |
+| deep MLP 64-96-64-32-10 (the full network above) | 202 | no, `DoesNotFit` (also with `paged=True`: neurons read 64 and 96 inputs) | - | - |
+| residual MLP 64-32-[32+res]-10 | 106 (408 columns) | no, `DoesNotFit` (also paged: 64 inputs) | - | - |
+| CNN conv4-conv8-avgpool-fc | 778 | no, `DoesNotFit` (also paged: AvgPool folds into a 512-wide Linear) | - | - |
 | deep variant 15-24-16-10 | 50 | yes | first 3 digits only | 0.9056 / 0.9037 / not measured |
 | residual variant, width 10 on the 15 pooled features | 40 | yes | first 3 digits only | 0.8685 / 0.8426 / not measured |
 | CNN variant 4x4 input, conv3x3 1->2 ch + fc | 42 | yes | first 3 digits only | 0.9185 / 0.8722 / not measured |
+| **paged** deep MLP 44-44-44-44-10 (`examples/run_stream.py deep`) | 142 | yes, 10 pages on a 45-column machine | token golden 540/540; circuit simulator 3 digits | 0.9722 / 0.9648 / not measured |
+| **paged** residual MLP 44-20-[20+res]-20-10 (`... residual`) | 70 | yes, 7 pages on a 44-column machine | token golden 540/540; circuit simulator 1 digit | 0.9722 / 0.9704 / not measured |
+| **paged** strided CNN 1x8x8 (`... cnn`) | 426 | yes, 36 pages on a 42-column machine | token golden 540/540; circuit simulator 1 digit | 0.9685 / 0.9574 / not measured |
 
-The variants' float / int accuracy is from `reference.run` on all 540 digits; their machine accuracy was not measured. All of the above is the CPU simulator. Real-model claims are only the A100 logs in Status.
+The variants' float / int accuracy is from `reference.run` on all 540 digits; their machine accuracy was not measured. "Token golden" is the independent numpy model of the machine
+(`asm.reference_emit`), run page by page. All of the above is the CPU simulator. Real-model claims are only the A100 logs in Status.
 
 ## 🔭 Where the model run is still open
 
-* `scripts/gpu_run.py digits`, `general`, `residual` and `throughput` are done on 0.8B, and `digits` and `general` also on 2B and 4B (see Status). Still open on the real model: anything beyond about 40 ops / 100 neurons, the 64-32-[32+res]-10 residual MLP, and throughput on 2B and 4B.
+* `scripts/gpu_run.py digits`, `general`, `residual`, `throughput` and `stream` are done on 0.8B, and `digits` and `general` also on 2B and 4B (see Status). Still open on the real model: a machine larger than 45 columns, in-model weight streaming (the host carries activations between pages), the paged networks and throughput on 2B and 4B, and layers wider than about 45 inputs.
 * Not covered by the IR and how it could be: [docs/DESIGN.md](docs/DESIGN.md) section 10.
 
 ## 🙏 Credits and license

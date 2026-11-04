@@ -9,12 +9,17 @@ from qwentensor import frontend, quant, reference as R
 def digits(features="pool15", seed=0):
     """sklearn 8x8 digits, same split as qwenTPU examples/mlp/train.py (30% test = 540 digits, stratified, random_state=0).
     pool15: 2x2 average pool -> 4x4 blocks, drop the always-dark corner -> 15 features in 0..1 (qwenTPU's input).
-    raw64: all 64 pixels in 0..1 (as (1,8,8) images when image=True is requested by reshaping the result)."""
+    raw64: all 64 pixels in 0..1 (as (1,8,8) images when image=True is requested by reshaping the result).
+    top44: the 44 highest-variance raw pixels (every neuron of a net on it fits the machine's 45-register read limit)."""
     from sklearn.datasets import load_digits
     from sklearn.model_selection import train_test_split
     d = load_digits(); I = d.images / 16.0
     Z = I.reshape(-1, 4, 2, 4, 2).mean((2, 4)).reshape(len(I), 16)[:, 1:] if features == "pool15" else I.reshape(len(I), 64)
-    return train_test_split(Z, d.target, test_size=0.3, random_state=seed, stratify=d.target)
+    Xtr, Xte, ytr, yte = train_test_split(Z, d.target, test_size=0.3, random_state=seed, stratify=d.target)
+    if features == "top44":
+        # the 44 highest-variance pixels of the training split (a neuron may read at most 45 registers, see docs/STREAMING.md)
+        keep = np.sort(np.argsort(-Xtr.var(0), kind="stable")[:44]); Xtr, Xte = Xtr[:, keep], Xte[:, keep]
+    return Xtr, Xte, ytr, yte
 
 
 def train_float(model, Xtr, ytr, epochs=300, lr=0.01, batch=64, seed=1, wd=0.0, shape=None):

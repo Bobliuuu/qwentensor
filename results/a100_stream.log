@@ -1,0 +1,21 @@
+queued 2026-11-04T13:30:11Z
+[stream] residual MLP 44-20-[20+res]-20-10: integer accuracy of reference.run on all 540 held-out digits = 0.9704
+[stream:residual] Spec(rows=16, cols=(16, 16, 12, 0), ab=5, wb=5, nops=16, fan=3, smax=5)
+[stream:residual] 70 neurons in 7 pages [12, 8, 16, 4, 14, 6, 10]; chip layers 15 hidden 4352 vocab 28992 build 33s
+[stream:residual] readout code: 10/10 digits exact end to end (every page's emitted tokens == numpy token golden AND final outputs == reference.run); 70 pages run, 0 page mismatches; prompt 161..574 tok, 1400 tokens emitted; 33.6s
+[stream:residual] readout lm_head: 10/10 digits exact end to end (every page's emitted tokens == numpy token golden AND final outputs == reference.run); 70 pages run, 0 page mismatches; prompt 161..574 tok, 1400 tokens emitted; 33.3s
+[stream] argmax accuracy of the reference outputs on these 10 digits: 1.00
+[stream] deep MLP 44-44-44-44-10: integer accuracy of reference.run on all 540 held-out digits = 0.9648
+[stream:deep] Spec(rows=16, cols=(15, 15, 15, 0), ab=5, wb=5, nops=15, fan=3, smax=5)
+[stream:deep] 142 neurons in 10 pages [15, 15, 14, 15, 15, 14, 15, 15, 14, 10]; chip layers 15 hidden 4352 vocab 29279 build 25s
+[stream:deep] readout code: 10/10 digits exact end to end (every page's emitted tokens == numpy token golden AND final outputs == reference.run); 100 pages run, 0 page mismatches; prompt 529..749 tok, 2840 tokens emitted; 65.8s
+[stream:deep] readout lm_head: 10/10 digits exact end to end (every page's emitted tokens == numpy token golden AND final outputs == reference.run); 100 pages run, 0 page mismatches; prompt 529..749 tok, 2840 tokens emitted; 66.2s
+[stream] argmax accuracy of the reference outputs on these 10 digits: 1.00
+[stream] strided CNN 1x8x8 -> conv4 -> conv8 s2 -> conv8 s2 -> fc10: integer accuracy of reference.run on all 540 held-out digits = 0.9574
+[stream:cnn] Spec(rows=16, cols=(18, 10, 8, 4, 2), ab=5, wb=5, nops=26, fan=3, smax=5)
+[stream:cnn] 426 neurons in 36 pages [18, 18, 18, 18, 18, 18, 18, 18, 26, 18, 18, 20, 18, 12, 11, 10, 10, 6, 3, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 9, 9, 9, 5, 8, 2]; chip layers 15 hidden 4096 vocab 31872 build 28s
+[stream:cnn] readout code: 10/10 digits exact end to end (every page's emitted tokens == numpy token golden AND final outputs == reference.run); 360 pages run, 0 page mismatches; prompt 157..452 tok, 8520 tokens emitted; 200.3s
+[stream:cnn] readout lm_head: 10/10 digits exact end to end (every page's emitted tokens == numpy token golden AND final outputs == reference.run); 360 pages run, 0 page mismatches; prompt 157..452 tok, 8520 tokens emitted; 202.0s
+[stream] argmax accuracy of the reference outputs on these 10 digits: 1.00
+TOTAL BAD 0
+finished 2026-11-04T13:42:29Z rc=0

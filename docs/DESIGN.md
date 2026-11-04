@@ -138,8 +138,11 @@ Limits (honest list):
 * **No loops, no data-dependent branches, no early exit.** Registers are single-assignment (a register's successor is a property of the register),
   so program length is bounded by the register count. Keying the successor on (register, value) would allow branches; not built.
 * **Wide first layers.** A neuron with more than `fan * (rows - 1)` inputs (784 pixels, for example) needs partial sums across time (an activation
-  RAM, or host-sequenced READs). Not built.
-* **No weight streaming.** All weights are resident in state.
+  RAM, or host-sequenced READs). Not built. The circuit builds `fan * rows` up to 48 when shifts reach 5 or more and up to 80 when `smax <= 4`
+  (`scripts/probe_fan.py`), so with trained shifts a neuron reads at most about 45 registers; the 64-input examples do not fit even in pages.
+* **Weight streaming is host-paged, not in-model.** Inside one run all weights are resident in state. A network with more neurons than one machine runs as
+  pages (`qt.compile(..., paged=True)`, `docs/STREAMING.md`): the model runs each page from its own tokens and the host copies the integer activations
+  between pages.
 * **Signed interior activations.** Activations are unsigned and post-relu. Only the input has the `posneg` split. A final `relu` clamps logits
   to `0..31`, so ties are possible; `act="linear"` (signed logits) is not machine-native.
 * **Accuracy.** 5-bit weights and activations, per-tensor scales. See the README table for the loss per network.

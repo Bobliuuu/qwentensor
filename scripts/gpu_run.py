@@ -1,5 +1,5 @@
 """Run the executor on the real merged Qwen3.5 (A100).  Host = generate(): argmax; append.  Everything else is in the model.
-usage: python scripts/gpu_run.py <phase>   phase: digits | general | residual | throughput
+usage: python scripts/gpu_run.py <phase>   phase: digits | general | residual | throughput | stream
 env: QWEN_DIR = checkpoint dir (default 0.8B), QWENTPU_SRC = qwenTPU repo, TAG = label printed in the log"""
 import os, sys, time
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -12,6 +12,7 @@ from qwentensor.ir import Graph, Node
 from qwentensor.machine.gpu import install
 from qwentensor.machine.run import generate
 from qwentensor.machine.sched import compile_graph, DoesNotFit
+from qwentensor.machine.pages import compile_paged
 from qwentensor.machine.spec import Spec
 
 SRC = os.environ.get("QWEN_DIR", "/home/ubuntu/qwentpu_gpu/q08")
@@ -61,6 +62,35 @@ def run_programs(tag, sp, items, readouts=("code",), model_cache={}):
         print(f"[{tag}] {name}: {ok}/{n} exact (emitted tokens == numpy token golden AND outputs == reference.run); prompt {len(p)} tok, emitted {len(want)}; {time.time()-t1:.1f}s", flush=True)
     del model; torch.cuda.empty_cache()
     return g
+
+
+def run_stream(tag, g, z, n, readouts, max_cols=45, max_ops=60):
+    """Paged execution of a network larger than one machine: every page is a fresh prompt on the SAME merged model; the host only
+    builds prompts, runs argmax; append, and copies the integer activations between pages (docs/STREAMING.md)."""
+    global bad
+    pc = compile_paged(g, rows=16, max_cols=max_cols, max_ops=max_ops); sp = pc.spec; st = pc.stats()
+    install(sp); t0 = time.time()
+    tc, sd, v0, lay, gg = build_merged(SRC, mute_qwen=False)
+    model = instantiate(tc, sd, "cuda")
+    print(f"[{tag}] {sp}\n[{tag}] {st['neurons']} neurons in {st['pages']} pages {st['page_neurons']}; chip layers {gg.n_layers()} hidden {lay.hidden} "
+          f"vocab {sp.nvocab} build {time.time()-t0:.0f}s", flush=True)
+    for ro in readouts:
+        ok = 0; pages_bad = 0; npages = 0; ntok = 0; t1 = time.time(); plens = []
+        for i in range(n):
+            xq = z["xq"][i]; ref = z["ref"][i]; page_bad = [0]
+
+            def exec_page(prog):
+                em = generate(TpuSession(model, v0, fast=True, readout=ro).feed, prog.prompt(), sp.HALT)
+                if em != prog.expected(): page_bad[0] += 1
+                return em
+            y, sizes = pc.run(xq, exec_page)
+            npages += len(sizes); pages_bad += page_bad[0]; ntok += sum(b for _, b in sizes); plens += [a for a, _ in sizes]
+            good = bool((y == ref).all()) and page_bad[0] == 0; ok += good
+            if not good: print("MISMATCH", tag, ro, "sample", i, flush=True)
+        bad += n - ok
+        print(f"[{tag}] readout {ro}: {ok}/{n} digits exact end to end (every page's emitted tokens == numpy token golden AND final outputs == reference.run); "
+              f"{npages} pages run, {pages_bad} page mismatches; prompt {min(plens)}..{max(plens)} tok, {ntok} tokens emitted; {time.time()-t1:.1f}s", flush=True)
+    del model; torch.cuda.empty_cache()
 
 
 phase = sys.argv[1]
@@ -119,4 +149,13 @@ elif phase == "throughput":
         pre = np.mean([r[3] for r in rs]); dec = np.mean([r[4] for r in rs])
         print(f"[throughput] {name}: exact {ok}/{len(rs)}; prompt {np_} tok, emitted {ne} tok; prefill {pre*1e3:.1f} ms; emitted-token loop {dec*1e3:.1f} ms = {ne/dec:.1f} tok/s ({dec/ne*1e3:.2f} ms/token); end-to-end {(pre+dec)*1e3:.1f} ms per inference ({1/(pre+dec):.2f} inf/s)", flush=True)
         bad += len(rs) - ok
+elif phase == "stream":
+    n = int(os.environ.get("N", 10)); want = os.environ.get("NETS", "residual,deep,cnn").split(",")
+    titles = {"residual": "residual MLP 44-20-[20+res]-20-10", "deep": "deep MLP 44-44-44-44-10", "cnn": "strided CNN 1x8x8 -> conv4 -> conv8 s2 -> conv8 s2 -> fc10"}
+    for name in want:
+        title = titles[name]
+        g = Graph.load(os.path.join(DATA, f"stream_{name}.json")); z = np.load(os.path.join(DATA, f"stream_samples_{name}.npz"))
+        print(f"[stream] {title}: integer accuracy of reference.run on all {len(z['y'])} held-out digits = {(z['ref'].argmax(1) == z['y']).mean():.4f}", flush=True)
+        run_stream(f"stream:{name}", g, z, n, readouts=("code", "lm_head"))
+        print(f"[stream] argmax accuracy of the reference outputs on these {n} digits: {(z['ref'][:n].argmax(1) == z['y'][:n]).mean():.2f}", flush=True)
 print("TOTAL BAD", bad)
