@@ -1,11 +1,36 @@
-# qwentensor
+<h1 align="center">🧠 qwentensor</h1>
+
+<p align="center"><b>Write a PyTorch network. Quantize it. Run it <i>inside</i> Qwen3.5.</b><br>
+No GPU kernels. No training. The "program" is just the prompt. 🧬</p>
+
+<p align="center">
+<a href="https://github.com/Bobliuuu/qwentensor/actions"><img src="https://github.com/Bobliuuu/qwentensor/actions/workflows/tests.yml/badge.svg" alt="tests"></a>
+<img src="https://img.shields.io/badge/real%20model-64%2F64%20exact-brightgreen" alt="64/64 exact">
+<img src="https://img.shields.io/badge/bits-5--bit%20ints-blue" alt="5-bit">
+<img src="https://img.shields.io/badge/license-MIT-lightgrey" alt="MIT">
+</p>
+
+<p align="center"><a href="#-quickstart">🚀 Quickstart</a> · <a href="#-supported-pytorch-ops">🧩 Ops</a> · <a href="#-results-540-held-out-sklearn-digits-seeds-fixed-python-examplesname">📊 Results</a> · <a href="#-limits">⚠️ Limits</a> · <a href="docs/DESIGN.md">📐 Design</a> · <a href="https://github.com/Bobliuuu/qwentpu">🔗 qwenTPU</a></p>
 
 Write a small neural network in PyTorch, quantize it to 5-bit integers, and run it as a program inside Qwen3.5 using the [qwenTPU](https://github.com/Bobliuuu/qwentpu) machinery.
 The program, including the schedule, is written in the prompt; the host only runs `argmax; append`.
 
+```python
+import qwentensor as qt
+net = qt.compile(model, calib_data, input_shape=(64,), backend="qwen")   # nn.Module in
+print(net.predict(x))                                                    # tokens out, bit-exact vs numpy golden
+```
+
+✨ **At a glance**
+* 🐍 any small `nn.Module` (Linear / ReLU / Conv / residual Add / pooling)
+* 🔢 5-bit integer weights, per-layer shift requantize
+* 📝 the schedule, successors and masks are **tokens in the prompt**: swap the prompt, swap the program
+* ✅ bit-exact vs a numpy golden on a real Qwen3.5-0.8B (A100): **40/40** digits MLP, **24/24** across four different programs
+* 🤖 the host does only `argmax; append`
+
 <p align="center"><img src="docs/anim/hero.gif" alt="a PyTorch network compiled to a prompt that Qwen3.5 executes" width="100%"></p>
 
-**Status.** The frontend, quantizer and bit-exact numpy golden are done. The executor reproduces the golden bit-for-bit on a **CPU simulator of the circuit**
+**📍 Status.** The frontend, quantizer and bit-exact numpy golden are done. The executor reproduces the golden bit-for-bit on a **CPU simulator of the circuit**
 (qwenTPU's float64 circuit-IR evaluator). On the real model, **four programs have been run**. First, the quantized digits MLP 15-15-10 (u5s5, shifts 2 and 4) on
 Qwen3.5-0.8B (A100, bf16): 20 held-out digits x 2 readouts (code bits and lm_head) = 40/40 exact, emitted tokens equal to the numpy token golden and outputs equal
 to `reference.run` (prompt 434 tokens, 50 emitted, 9 chip layers, hidden 3072, vocab 17616; 95% argmax accuracy on those 20 digits). The host did only `argmax; append`.
@@ -23,7 +48,7 @@ Second, **one compiled 14-layer model** (Spec rows=16, cols=(15,12,8), fan 2, sm
 Log: [results/a100_general.log](results/a100_general.log). The deep MLP and the CNN below, and the frontend's residual MLP 64-32-[32+res]-10, have not run on the real model.
 See [docs/EXECUTOR.md](docs/EXECUTOR.md) section 7.
 
-## How it differs from qwenTPU
+## 🔀 How it differs from qwenTPU
 
 | | what runs | who decides the computation |
 |---|---|---|
@@ -59,7 +84,7 @@ nn.Module --torch.fx--> float IR --quantize (PTQ, optional STE QAT)--> integer I
 
 Design write-up: [docs/DESIGN.md](docs/DESIGN.md). Project page: `docs/site/`.
 
-## Quickstart
+## 🚀 Quickstart
 
 ```bash
 pip install -e ".[dev]"                 # torch, numpy, pytest, scikit-learn
@@ -91,7 +116,7 @@ Errors: `qt.UnsupportedOpError` names the op; `qt.DoesNotFit` gives the neuron c
 Step-by-step (what `compile` does): `frontend.from_torch` -> `quant.quantize(fg, X_calib, QConfig("v2.1", bias_rows=4))` -> optional `quant.qat` ->
 `machine.sched.compile_graph` -> `Program.prompt()`.
 
-## Supported PyTorch ops
+## 🧩 Supported PyTorch ops
 
 Authoritative table: [docs/IR.md](docs/IR.md) section 3.
 
@@ -99,7 +124,7 @@ Authoritative table: [docs/IR.md](docs/IR.md) section 3.
 |---|---|
 | `Linear`, `ReLU`, `Conv2d` (im2col, groups=1, dilation=1, zero padding, any stride), residual `Add`, `AvgPool2d` / `AdaptiveAvgPool2d`, `Flatten` / `view` / `reshape`, `Embedding` on the integer input, `Identity` / `Dropout` (eval), trailing `argmax` | `Softmax` / `log_softmax` (a trailing one before argmax is dropped), `LayerNorm`, `BatchNorm` (fold it first; not automatic yet), `GELU` / `SiLU` / `Sigmoid` / `Tanh`, `MaxPool2d`, attention, data x data products, recurrent layers, control flow |
 
-## Limits
+## ⚠️ Limits
 
 * **Size.** About 100 neurons is the practical ceiling on the 0.8B model (heads grow about 2 per column); at most 128 ops and 126 physical columns. Every conv output position is a separate neuron set (`groups` duplicates the weights), so the 8x8 CNN below is far over that: it is an IR/quantizer example, not a machine one.
 * **No loops, no data-dependent branches, no early exit.** Registers are single-assignment.
@@ -107,7 +132,7 @@ Authoritative table: [docs/IR.md](docs/IR.md) section 3.
 * **No weight streaming**: all weights are resident. **Unsigned interior activations**; final logits are relu-clamped to 0..31.
 * **Small programs only on the real Qwen3.5.** The largest machine run there is 14 chip layers, 40 ops, vocab 26616; the deep MLP and CNN do not fit.
 
-## Results (540 held-out sklearn digits, seeds fixed, `python examples/<name>.py`)
+## 📊 Results (540 held-out sklearn digits, seeds fixed, `python examples/<name>.py`)
 
 Integer accuracy = bit-exact `reference.run` of the quantized IR (what the machine must reproduce). "PTQ" = post-training quantization with 512 calibration
 samples taken from the training split; "+QAT" = STE fine-tuning of the integer weights, model selection on TRAIN accuracy only.
@@ -136,7 +161,7 @@ Honest reading of the losses:
   and 5-14 points on the tiny 15-15-10 net before QAT. Float numbers vary +-1.5 points with the training seed; ours are one fixed seed each.
 * No BatchNorm folding yet, no signed interior activations, classification-only QAT.
 
-## Compile and run through the machine (`examples/run_*.py`, CPU circuit simulator)
+## ⚙️ Compile and run through the machine (`examples/run_*.py`, CPU circuit simulator)
 
 Held-out sklearn digits (540). Machine accuracy is only measured for the digits MLP.
 
@@ -152,12 +177,12 @@ Held-out sklearn digits (540). Machine accuracy is only measured for the digits 
 
 The variants' float / int accuracy is from `reference.run` on all 540 digits; their machine accuracy was not measured. All of the above is the CPU simulator. Real-model claims are only the two A100 logs in Status.
 
-## Where the model run is still open
+## 🔭 Where the model run is still open
 
 * `scripts/gpu_run.py digits` and `general` are done (see Status). Still open on the real model: the frontend's residual MLP, anything beyond about 40 ops / 100 neurons, other Qwen3.5 sizes (only 0.8B was run), and a throughput measurement.
 * Not covered by the IR and how it could be: [docs/DESIGN.md](docs/DESIGN.md) section 10.
 
-## Credits and license
+## 🙏 Credits and license
 
 Built on [qwenTPU](https://github.com/Bobliuuu/qwentpu) (the in-weights integer array, the requantize gadget, the circuit-IR evaluator). Design vocabulary (DeltaNet rows as RAM, tokens as the trace) comes from
 [Qwenputer](https://github.com/divagr18/qwenputer) and [QwenPU](https://github.com/divagr18/QwenPU); no code is shared with them. Base models: Qwen3.5. MIT licensed (`LICENSE`).
