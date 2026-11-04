@@ -113,8 +113,10 @@ elif phase == "general":
         items.append((name, comp, xs))
     run_programs("general", sp, items, readouts=("code",))
 elif phase == "stream":
-    n = int(os.environ.get("N", 10))
-    for name, title in (("residual", "residual MLP 44-20-[20+res]-20-10"), ("deep", "deep MLP 44-44-44-44-10")):
+    n = int(os.environ.get("N", 10)); want = os.environ.get("NETS", "residual,deep,cnn").split(",")
+    titles = {"residual": "residual MLP 44-20-[20+res]-20-10", "deep": "deep MLP 44-44-44-44-10", "cnn": "strided CNN 1x8x8 -> conv4 -> conv8 s2 -> conv8 s2 -> fc10"}
+    for name in want:
+        title = titles[name]
         g = Graph.load(os.path.join(DATA, f"stream_{name}.json")); z = np.load(os.path.join(DATA, f"stream_samples_{name}.npz"))
         print(f"[stream] {title}: integer accuracy of reference.run on all {len(z['y'])} held-out digits = {(z['ref'].argmax(1) == z['y']).mean():.4f}", flush=True)
         run_stream(f"stream:{name}", g, z, n, readouts=("code", "lm_head"))

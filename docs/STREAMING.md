@@ -69,8 +69,9 @@ recompiled against it. The circuit is built once as a feasibility check. `DoesNo
 
 * **Wide neurons.** One neuron reads at most `fan * (rows - 1)` registers. The circuit builds `fan * rows` up to 48 when shifts reach 5 or more
   and up to 80 when `smax <= 4` (`scripts/probe_fan.py`): the carry staircase of the requantizer must fit its 256 window. A trained 64-input layer
-  needs shifts of 5 to 6, so its neurons need `fan` 5 at 16 rows and the circuit does not build. The 64-96-64-32-10 deep MLP and the 64-wide residual
-  MLP therefore still raise `DoesNotFit`, now for this reason and not for lack of ops or columns. Partial sums across pages would need un-clamped
+  needs shifts of 5 to 6, so its neurons need `fan` 5 at 16 rows and the circuit does not build. The 64-96-64-32-10 deep MLP (fan 7 or 8) and the
+  64-wide residual MLP (fan 5 or 6) therefore still raise `DoesNotFit` when paged (`scripts/probe_wide_examples.py`, with and without `bias_rows=4`),
+  now for this reason and not for lack of ops or columns. Partial sums across pages would need un-clamped
   digit carries between pages; not built.
 * No loops or data-dependent branches inside a page; signed logits; attention, softmax, norms (unchanged).
 * Throughput: every page re-prefills its own prompt, so a network costs `pages x (prompt prefill + emitted tokens)`.

@@ -55,7 +55,8 @@ columns, shifts, weights, widths, depth. **Still compiled in**: the machine geom
 **Unsolved/limits**: (a) SSA: one op per destination register, because a register's successor is a property of the register (a loop that reuses a
 register would need a counter); so program length <= number of registers; no loops, no early exit, no data-dependent branch (the successor
 could be keyed on (register, value), 32x the keys, not built). (b) 128 slots per mask/shift head (more heads would be needed beyond 128 ops).
-(c) the program must fit entirely in state: weights are resident, there is no weight streaming.
+(c) within one run the program must fit entirely in state: weights are resident. Networks larger than one machine run as a sequence of runs ("pages") on
+one shared machine, with the host carrying the integer activations between them: `docs/STREAMING.md`.
 
 ## 3. Problem 2: tiling and partial sums
 
@@ -124,6 +125,6 @@ emitted; 95% argmax accuracy on those 20. Log: `~/qwentensor_run/digits.log` on 
 
 ## 8. Remaining unsolved (summary)
 loops / data-dependent branches / early exit; neurons with more than `fan*(rows-1)` inputs (no activation RAM, no digit-token carry across
-time); weight streaming (all weights resident: cells = sum over neurons of tiles-touched * rows); conv `groups` unrolled (P x columns); SSA register
+time); in-model weight streaming (weights are resident inside a run; larger networks are paged by the host, `docs/STREAMING.md`); conv `groups` unrolled (P x columns); SSA register
 file (program length <= registers); signed activations / `act=linear` (outputs are relu-clamped); attention / softmax / norms (IR level);
 hardware size: heads ~ 2 per column (16 per layer), so ~100 neurons is the practical ceiling on this model.

@@ -31,3 +31,24 @@ class ResMLP(nn.Module):
 def residual():
     torch.manual_seed(0)
     return train_float(ResMLP(), Xtr, ytr, epochs=150)
+
+
+class StridedCNN(nn.Module):
+    """conv3x3(1->4, pad 1) -> conv3x3(4->8, stride 2) -> conv2x2(8->8, stride 2) -> Linear(32->10), all ReLU: 426 neurons, every neuron reads <= 36
+    inputs (a strided conv instead of AvgPool + a 512-wide Linear, which no neuron could read)."""
+
+    def __init__(self):
+        super().__init__()
+        self.c1 = nn.Conv2d(1, 4, 3, padding=1); self.c2 = nn.Conv2d(4, 8, 3, stride=2, padding=1); self.c3 = nn.Conv2d(8, 8, 2, stride=2)
+        self.fc = nn.Linear(8 * 2 * 2, 10)
+
+    def forward(self, x):
+        x = torch.relu(self.c1(x)); x = torch.relu(self.c2(x)); x = torch.relu(self.c3(x))
+        return self.fc(torch.flatten(x, 1))
+
+
+def cnn():
+    """-> (model, Xtr64, Xte64, ytr, yte): the strided CNN on all 64 pixels (as (1, 8, 8) images)."""
+    xtr, xte, ytr_, yte_ = digits("raw64")
+    torch.manual_seed(0)
+    return train_float(StridedCNN(), xtr, ytr_, epochs=60, shape=(1, 8, 8)), xtr, xte, ytr_, yte_
