@@ -1,0 +1,25 @@
+{
+ "model": "digits MLP 15-15-10 (examples/digits_mlp.py)",
+ "n": 540,
+ "float_acc": 0.9037037037037037,
+ "int_acc": 0.8944444444444445,
+ "ptq_acc": 0.762962962962963,
+ "qat_bias4_acc": 0.8981481481481481,
+ "ptq_bias4_acc": 0.8518518518518519,
+ "ptq_v20_acc": 0.43703703703703706,
+ "trace_graph_acc": 0.8944444444444445,
+ "deep": {
+  "float_acc": 0.9777777777777777,
+  "v20_ptq": 0.24074074074074073,
+  "v21_ptq": 0.975925925925926
+ },
+ "machine_run": "cpu-simulator",
+ "placeholder": false,
+ "note": "accuracies are the bit-exact integer reference (reference.run) on 540 held-out digits; machine_run says where the token trace ran",
+ "real_model_check": {
+  "where": "lambda-final:~/qwentensor_run/digits.log (and general.log)",
+  "model": "real merged Qwen3.5-0.8B on an A100",
+  "result": "digits MLP 15-15-10 (older QAT graph, shifts 2,4): 40/40 exact on 20 digits (code and lm_head readouts): emitted tokens == numpy token golden AND outputs == reference.run; general machine: 4 programs x 6/6 exact",
+  "note": "that run is a different trained graph than the one in this trace (shifts 4,4), so this trace stays labelled cpu-simulator"
+ }
+}

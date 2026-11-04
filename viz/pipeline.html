@@ -1,0 +1,89 @@
+<!doctype html><html><head><meta charset="utf-8"><title>qwentensor pipeline</title><style>html,body{margin:0;background:#fff}canvas{display:block}</style></head><body><canvas id="c"></canvas>
+<script src="light.js"></script><script src="data/trace.js"></script><script src="common.js"></script><script>
+// Pipeline explainer. All numbers come from data/trace.js (gen_trace.py). TRACE.placeholder -> an on-screen "illustrative data" tag.
+const Q=D.quant,E=D.emitted,NR=Q.w1q.length,NC=Q.w1q[0].length,QM=Math.pow(2,Q.bits-1)-1,P=D.prompt,L0=D.layers[0],L1=D.layers[1];
+const NPROMPT=P.total;
+const SC=[['code','PYTORCH  >  FX GRAPH',0,9],['quant','QUANTIZE',9,23],['ir','INTEGER GRAPH IR',23,31],['prompt','LAYOUT AS PROMPT',31,43],['run','QWEN RUNS IT',43,62]];
+const caps=[[.6,8.6,'Write any PyTorch module. torch.fx traces it into a graph.','nn.Module code -> torch.fx.symbolic_trace -> nodes: input, linear, relu, linear, output'],
+ [9.6,14.8,'Floats snap to small integers.','each weight becomes round(w * k), clamped to a '+Q.bits+'-bit range ('+(-QM-1)+'..'+QM+'); the layer also gets a shift'],
+ [15,22.6,'The integer network is checked against the float one.','measured with reference.run on '+R.n+' held-out digits (data/results.json)'],
+ [23.6,30.6,'The graph becomes integer ops: matvec, shift, relu, clamp, argmax.','every op has an exact integer meaning, so the machine can reproduce it bit for bit'],
+ [31.6,42.6,'Weights, program memory and input become prompt tokens.','the program is data: PROG tokens write each op\'s successor, destination, column mask and shift into the model\'s state'],
+ [43.6,54.6,'Qwen writes every token itself.','each token it emits is fed back as the next input; the program memory says what comes next'],
+ [55,61.4,'The host only does: argmax; append.','no Python forward pass: the class is read off the ACT tokens Qwen wrote']];
+function stepper(u){SC.forEach(([id,l,a,b],i)=>{const x=48+i*363,on=u>=a&&u<b,done=u>=b;rr(x,112,350,46,23,on?C.blue:done?C.bluel:C.panel,on?C.blue:C.line,2);tx((i+1)+'  '+l,x+175,145,{size:22,weight:800,align:'center',color:on?'#fff':done?C.blue:C.mut,ls:1})})}
+// ---- scene 1
+function sCode(u){const pa=eo(prog(u,0,.4));ctx.save();ctx.globalAlpha=pa;rr(48,190,860,470,20,'#fbfcfe',C.line,2);tx('model.py',80,232,{size:24,weight:700,color:C.mut,mono:true});ln(48,248,908,248,C.line,2);ctx.restore();
+ const total=D.code.reduce((s,l)=>s+l.length+1,0),n=Math.floor(total*prog(u,.6,4.6));const cur=drawCode(D.code,n,76,330,80,34);
+ if(cur&&u<5.2&&Math.floor(u*3)%2===0)rr(cur[0]+2,cur[1]-30,14,38,2,C.blue);
+ const g=eo(prog(u,4.8,5.4));ctx.save();ctx.globalAlpha=g;tx('torch.fx.symbolic_trace',1435,232,{size:32,weight:800,align:'center',color:C.pu,mono:true});arrow(930,470,990,470,C.pu,5);ctx.restore();
+ D.fx.forEach((nd,i)=>{const a=eo(prog(u,5.2+i*.45,5.7+i*.45)),x=1000+i*(150+16),y=410;if(a<=0)return;ctx.save();ctx.globalAlpha=a;ctx.translate(0,(1-a)*16);
+  const lin=/Linear/.test(nd.detail),rl=/ReLU/.test(nd.detail),col=lin?C.blue:rl?C.or:C.mut,fill=lin?C.bluel:rl?C.orl:C.gyl;rr(x,y,150,120,16,fill,col,3);
+  tx(nd.name,x+75,y+52,{size:30,weight:800,align:'center',color:col,mono:true});tx(nd.detail.replace('Linear ','').replace('->','>')||nd.op,x+75,y+90,{size:20,weight:600,align:'center',color:C.mut});ctx.restore();
+  if(i>0&&a>0){const ar=eo(prog(u,5.4+i*.45,5.8+i*.45));ctx.save();ctx.globalAlpha=ar;arrow(x-16,y+60,x+2,y+60,C.mut,3);ctx.restore()}});
+ const k=eo(prog(u,7.6,8.2));ctx.save();ctx.globalAlpha=k;rr(1000,590,870,80,16,C.panel,C.line,2);tx('a plain graph of float ops: nothing is hidden in Python',1435,642,{size:28,weight:700,align:'center',color:C.ink});ctx.restore()}
+// ---- scene 2
+function sQuant(u){
+ const cw=112,ch=58,fx=70,fy=250,ix=1000,iy=250;
+ tx('float weights  (corner of 15x15 fc1)',fx,222,{size:26,weight:800,color:C.mut});tx(`int weights  (${Q.bits}-bit)`,ix,222,{size:28,weight:800,color:C.blue,alpha:eo(prog(u,1.2,1.8))});
+ const snapT=2.0;
+ for(let r=0;r<NR;r++)for(let c=0;c<NC;c++){const i=r*NC+c,t=prog(u,snapT+i*.07,snapT+i*.07+.6),e=eio(t);const wf=Q.w1f[r][c],wq=Q.w1q[r][c];
+  const x=fx+c*cw,y=fy+r*ch;rr(x,y,cw-8,ch-8,10,C.panel,C.line,1.5);tx(wf.toFixed(2),x+(cw-8)/2,y+37,{size:26,weight:700,align:'center',mono:true,color:C.mut,alpha:1-e*.5});
+  if(e>0){const xx=ix+c*cw,yy=iy+r*ch;const fill=wq===0?'#f1f4fa':wq>0?mixc('#e3ecfc','#5b8def',clamp(wq/QM,.15,1)):mixc('#f0e8fb','#9b6df0',clamp(-wq/QM,.15,1));
+   ctx.save();ctx.globalAlpha=e;rr(xx,yy,cw-8,ch-8,10,fill,C.blue,2);tx(String(wq),xx+(cw-8)/2,yy+37,{size:30,weight:800,align:'center',mono:true,color:wq>0?'#0b3a8a':wq<0?'#5a24b5':C.mut});ctx.restore();
+   if(t>0&&t<1){const px=lerp(x+(cw-8)/2,xx+(cw-8)/2,e),py=lerp(y+(ch-8)/2,yy+(ch-8)/2,e)-Math.sin(e*Math.PI)*26;dotc(px,py,7,C.blue,10)}}}
+ const aa=eo(prog(u,1.2,1.8));ctx.save();ctx.globalAlpha=aa;arrow(760,370,980,370,C.blue,5);tx('round(w * k)',870,340,{size:28,weight:800,align:'center',mono:true,color:C.blue});tx('k = '+Q.k.toFixed(2),870,412,{size:24,weight:600,align:'center',mono:true,color:C.mut});ctx.restore();
+ const ny=600,x0=170,x1=1750,nl=eo(prog(u,.4,1.2));ctx.save();ctx.globalAlpha=nl;ln(x0,ny,x1,ny,C.gy,4);
+ for(let v=-QM-1;v<=QM;v++){const x=lerp(x0,x1,(v+QM+1)/(2*QM+1));ln(x,ny-(v%5===0?16:9),x,ny+(v%5===0?16:9),C.mut,2);if(v%5===0)tx(String(v),x,ny+48,{size:22,weight:700,align:'center',mono:true,color:C.mut})}
+ tx(`${Math.pow(2,Q.bits)} levels`,x1,ny-34,{size:24,weight:800,align:'right',color:C.blue});ctx.restore();
+ for(let r=0;r<NR;r++)for(let c=0;c<NC;c++){const i=r*NC+c,t=prog(u,snapT+i*.07,snapT+i*.07+.6);if(t<=0)continue;const wf=Q.w1f[r][c]*Q.k,wq=Q.w1q[r][c];const X=v=>lerp(x0,x1,(v+QM+1)/(2*QM+1));
+  dotc(lerp(X(clamp(wf,-QM-1,QM)),X(wq),eio(t)),ny-6,6,mixc('#9bbcf7','#2563eb',eio(t)),0)}
+ // accuracy: all numbers from results.json
+ const ap=eo(prog(u,6.2,7.2));ctx.save();ctx.globalAlpha=ap;rr(70,690,1780,196,20,'#fbfcfe',C.line,2);
+ tx('ACCURACY  float vs integer',100,728,{size:24,weight:800,color:C.mut,ls:1.5});
+ [['float model (torch)',R.float_acc,C.gy],['integer, post-training quantization',R.ptq_acc,'#8fb2f5'],['integer, after QAT fine-tune',R.int_acc,C.blue]].forEach(([l,v,c],i)=>{const yy=742+i*46;tx(l,100,yy+29,{size:26,weight:700});rr(620,yy,850,36,12,C.panel,C.line,1.5);
+  const f=v==null?0:v*eo(prog(u,6.8,8.2));if(v!=null)rr(620,yy,850*f,36,12,c);tx(v==null?'--':accTxt(f),1500,yy+30,{size:32,weight:800,mono:true,color:C.ink})});
+ tx(`measured on ${R.n} held-out digits`,1830,728,{size:22,weight:700,align:'right',color:C.mut});
+ ctx.restore()}
+// ---- scene 3
+function sIR(u){
+ const rows=[['Linear 15 -> 15','_0',`MATVEC mv0  15x15  shift ${L0.shift}`,C.blue,C.bluel],['ReLU','_1',`fused: clip(y >> ${L0.shift}, 0, 31)`,C.or,C.orl],['Linear 15 -> 10','_2',`MATVEC mv1  15x10  shift ${L1.shift}`,C.blue,C.bluel],['output','logits','argmax  (host, over 10 ints)',C.gr,C.grl]];
+ tx('float graph (torch.fx)',130,226,{size:28,weight:800,color:C.mut});tx('integer graph IR',1060,226,{size:28,weight:800,color:C.blue});
+ rows.forEach(([a,n,b,col,fill],i)=>{const y=256+i*150,t0=.4+i*.8,a1=eo(prog(u,t0,t0+.5)),a2=eo(prog(u,t0+.5,t0+1.1));
+  ctx.save();ctx.globalAlpha=a1;rr(130,y,640,110,18,C.panel,C.line,2);tx(a,160,y+48,{size:34,weight:800});tx(n,160,y+88,{size:26,weight:600,mono:true,color:C.mut});ctx.restore();
+  ctx.save();ctx.globalAlpha=a2;arrow(790,y+55,1030,y+55,col,5);rr(1060,y,760,110,18,fill,col,3);tx(b,1090,y+66,{size:30,weight:800,mono:true,color:col});ctx.restore()});
+ const k=eo(prog(u,4.4,5.2));ctx.save();ctx.globalAlpha=k;tx('integers only: values 0..31, weights -16..15, one shift per layer',W/2,872,{size:30,weight:800,align:'center',color:C.mut});ctx.restore()}
+// ---- scene 4
+function sPrompt(u){
+ const cells=P.cells,pm=D.progmem,px=[[70,'WEIGHTS',P.cell,'CELL',C.or],[700,'PROGRAM MEMORY',P.prog,'PROG',C.pu],[1330,'INPUT + REGISTERS',P.act,'ACT',C.gr]];
+ px.forEach(([x,l,n,k,col],i)=>{const a=eo(prog(u,.3+i*.7,.9+i*.7));ctx.save();ctx.globalAlpha=a;rr(x,190,520,350,20,'#fbfcfe',col,3);tx(l,x+24,236,{size:28,weight:800,color:col,ls:1});tx(n+' tokens',x+496,236,{size:26,weight:700,align:'right',color:C.mut});
+  if(i===0){const per=12,show=72;for(let j=0;j<show;j++){const v=cells[j],cx=x+26+(j%per)*40,cy=262+Math.floor(j/per)*40;rr(cx,cy,34,34,6,mixc(C.orl,C.or,.15+.6*Math.abs(v)/16),C.or,1.5)}tx('CELL tokens: one per nonzero weight (first 72 shown)',x+260,520,{size:20,weight:600,align:'center',color:C.mut})}
+  if(i===1){const o=pm.ops[0],o1=pm.ops[1];['PS_READ  op0 -> r'+o.dest,'PM       op0 col '+o.col,'PSH      op0 shift '+o.shift,'PS_ACT   r'+o.dest+' -> op1','PS_READ  op1 -> r'+o1.dest,'...'].forEach((t,j)=>tx(t,x+26,286+j*40,{size:26,weight:800,mono:true,color:C.pu}));tx('PROG tokens: successor, dest, mask, shift per op',x+260,520,{size:20,weight:600,align:'center',color:C.mut})}
+  if(i===2){D.x.forEach((v,j)=>{const cx=x+26+(j%5)*98,cy=262+Math.floor(j/5)*70;rr(cx,cy,88,60,10,mixc(C.grl,C.gr,.1+.6*v/31),C.gr,2);tx(String(v),cx+44,cy+42,{size:30,weight:800,align:'center',mono:true,color:'#0d5e2b'})});tx('15 input values (5-bit), plus the register file',x+260,520,{size:20,weight:600,align:'center',color:C.mut})}
+  ctx.restore()});
+ const sy=640,s=prog(u,3.4,7),fill=eio(s);
+ tx('the prompt, in order: weights, program memory, input',70,sy-24,{size:28,weight:800,color:C.mut});
+ const r=tokenStrip(P.kinds,70,sy,1780,70,fill,150);
+ tx(Math.floor(P.total*fill)+' / '+P.total+' tokens',1850,sy-24,{size:32,weight:800,align:'right',mono:true,color:C.blue});
+ if(r.per>1)tx('each box = '+r.per+' tokens',70,sy+108,{size:22,weight:600,color:C.mut});
+ const ga=eo(prog(u,7.4,8.2));ctx.save();ctx.globalAlpha=ga;arrow(940,760,940,825,C.blue,6);tx('generate: the model takes over from here',960,868,{size:36,weight:800,color:C.blue,align:'center'});ctx.restore()}
+// ---- scene 5
+const LOOP=[[1100,420],[1270,420],[1270,560],[560,560],[560,420],[700,420]];
+function sRun(u){
+ const T0=1.6,SL=.62,NS=6,t1=T0+NS*SL,FF=7,N=E.length;
+ let n,frac;if(u<T0){n=-1;frac=0}else if(u<t1){const q=(u-T0)/SL;n=Math.floor(q);frac=q-n}else{const q=eio(prog(u,t1,t1+FF));n=Math.min(N-1,NS+Math.floor(q*(N-NS)));frac=(u*7)%1;if(u>=t1+FF){n=N-1;frac=1}}
+ const hot=n>=0&&n<N-1&&frac<.4?1:0;
+ rr(48,190,W-96,600,22,'#fbfcfe',C.line,2);
+ box(110,330,250,120,'HOST',null,C.or,C.orl,0);tx('argmax; append',235,490,{size:30,weight:700,align:'center',color:C.or});ln(360,390,560,420,C.or,3,[10,8]);
+ box(700,320,400,190,'QWEN3.5','writes every token',C.blue,'#eef4ff',hot);
+ ctx.save();ctx.strokeStyle=C.gr;ctx.lineWidth=5;ctx.setLineDash([14,10]);ctx.beginPath();LOOP.forEach((p,i)=>i?ctx.lineTo(p[0],p[1]):ctx.moveTo(p[0],p[1]));ctx.stroke();ctx.restore();arrow(640,420,698,420,C.gr,5);
+ tx('its output is its next input',905,545,{size:30,weight:800,align:'center',color:C.gr});
+ const pa=eo(prog(u,.2,.9));ctx.save();ctx.globalAlpha=pa;rr(110,214,1250,60,14,C.panel,C.line,2);tx(`prompt: ${NPROMPT} tokens (weights + program memory + input)`,735,254,{size:28,weight:700,align:'center',color:C.mut});ctx.restore();
+ if(n>=0){const t=E[Math.min(n,N-1)];const [x,y]=alongPath(LOOP,n>=N-1?0:clamp(frac*1.2));chipC(tokLabel(t),x,y,t.kind)}
+ const cnt=n<0?0:Math.min(N,n+1);
+ tx('written by the model',1580,360,{size:32,weight:700,align:'center',color:C.mut});tx(`${cnt} of ${N}`,1580,440,{size:72,weight:800,align:'center',mono:true,color:C.blue});tx('tokens after the prompt',1580,490,{size:32,weight:600,align:'center',color:C.mut});
+ const ty=626;tx('emitted tape: READ op, then ACT register = value',110,ty-14,{size:24,weight:800,color:C.mut,ls:1});let x=110,row=0;
+ for(let j=0;j<cnt;j++){const t=E[j];const lab=t.kind==='READ'?'R'+t.k:t.kind==='ACT'?String(t.val):'H';const w=chip(lab,x,ty+row*50,t.kind,{size:20,pad:18,alpha:j===cnt-1?clamp(frac*3):1});x+=w+6;if(x>1790){x=110;row++}}
+ if(n>=N-1){const e=eob(prog(u,t1+FF,t1+FF+.5));ctx.save();ctx.translate(1100,752);ctx.scale(clamp(e,0,1.05),clamp(e,0,1.05));rr(-560,-28,1120,58,18,C.grl,C.gr,3);tx(`HALT. outputs ${D.result.out.join(' ')}  ->  class ${D.result.pred} (label ${D.result.label})`,0,10,{size:30,weight:800,align:'center',color:C.gr,mono:true});ctx.restore()}}
+register(64,u=>{header('','PYTORCH TO QWEN',u);const sc=SC.find(s=>u>=s[2]&&u<s[3])||SC[4];stepper(u);const lu=u-sc[2];({code:sCode,quant:sQuant,ir:sIR,prompt:sPrompt,run:sRun})[sc[0]](lu);placeholderTag(u,W-48,183);caption(caps,u)});
+</script></body></html>

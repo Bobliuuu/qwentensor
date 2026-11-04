@@ -1,0 +1,53 @@
+<!doctype html><html><head><meta charset="utf-8"><title>qwentensor program memory</title><style>html,body{margin:0;background:#fff}canvas{display:block}</style></head><body><canvas id="c"></canvas>
+<script src="light.js"></script><script src="data/trace.js"></script><script src="common.js"></script><script>
+// Program memory: PROG tokens in the prompt write each op's successor / destination / column mask / shift into the model's state
+// (DeltaNet heads, spec.py). Then next token = succ[slot(current token)] (+ the value bits if the current token is a READ).
+// All words below come from trace.progmem / trace.emitted (Program.prompt() of the real quantized digits MLP).
+const PM=D.progmem,OPS=PM.ops,SUCC=PM.succ,NOPS=PM.nops,E=D.emitted,NP=D.prompt;
+const ROWS=[0,1,2,3].map(j=>({kind:'op',j})).concat([{kind:'gap'}]).concat(SUCC.slice(0,4).map(s=>({kind:'reg',r:s.reg,next:s.next_op})));
+const PROGLINES=[];[0,1,2,3].forEach(j=>{const o=OPS[j];PROGLINES.push({t:'PS_READ  op'+j+' -> r'+o.dest,row:j,col:'succ'},{t:'PM       op'+j+' col '+o.col,row:j,col:'mask'},{t:'PSH      op'+j+' shift '+o.shift,row:j,col:'shift'})});
+SUCC.slice(0,4).forEach((s,i)=>PROGLINES.push({t:'PS_ACT   r'+s.reg+' -> op'+s.next_op,row:5+i,col:'succ'}));
+const T_P0=2.2,T_P1=11,T_X0=12.2,STEP=3.4,T_END=T_X0+4*STEP;
+const COLX={slot:830,succ:1110,mask:1470,shift:1700},RY=262,RH=56;
+const caps=[[.5,2.1,'The schedule is not compiled in. It is prompt data.','PROG tokens write each op\'s successor, destination, column mask and shift into Qwen\'s state'],
+ [2.4,11,'The prompt writes the program memory.','one PROG token = one word of one slot; '+NP.prog+' PROG tokens here, '+NP.total+' prompt tokens in all'],
+ [12.4,T_END-.6,'The next token is a lookup: succ[ slot(current token) ].','a READ also adds the computed value bits; zero extra layers (docs/EXECUTOR.md section 2)'],
+ [T_END+.2,T_END+4.6,'Any order, any skip connection, any depth: just different prompt words.','compiled in: machine size and token layout. Not supported: loops and data-dependent branches']];
+function slotName(r){return r.kind==='op'?'op '+r.j:'r'+r.r+'  slot '+(NOPS+r.r)}
+function cell(r,col){if(r.kind==='op'){const o=OPS[r.j];return col==='succ'?'ACT r'+o.dest+' + value':col==='mask'?'column '+o.col:'>> '+o.shift}return col==='succ'?'READ op'+r.next:'-'}
+function table(u,reveal,hotRow,hotCol){
+ rr(800,190,1072,690,20,'#fbfcfe',C.pu,3);tx('PROGRAM MEMORY  (head state, written by PROG tokens)',830,236,{size:26,weight:800,color:C.pu,ls:1});
+ [['slot','slot'],['succ','successor'],['mask','mask'],['shift','shift']].forEach(([k,l])=>tx(l,COLX[k],286-0,{size:22,weight:700,color:C.mut,ls:1}));ln(820,298,1852,298,C.line,2);
+ ROWS.forEach((r,i)=>{const y=RY+48+i*RH;if(r.kind==='gap'){tx('...',COLX.slot+40,y+34,{size:28,weight:800,color:C.mut});return}
+  const hot=hotRow===i;if(hot)rr(814,y-6,1044,RH-4,12,C.pul,C.pu,2.5);
+  tx(slotName(r),COLX.slot,y+30,{size:24,weight:800,mono:true,color:r.kind==='op'?C.blue:C.or});
+  ['succ','mask','shift'].forEach(c=>{const on=reveal(i,c);if(on>0){ctx.save();ctx.globalAlpha=clamp(on);const h=hot&&(hotCol===c||hotCol==='all');tx(cell(r,c),COLX[c],y+30,{size:24,weight:h?800:700,mono:true,color:h?C.pu:C.ink});ctx.restore()}else tx('.',COLX[c],y+30,{size:24,color:C.gy,mono:true})})});
+ tx('op slot = READ(j).  register slot = ACT(r;v): slot index nops + r',830,858,{size:22,weight:600,color:C.mut})}
+function phase1(u){
+ // left: token stream
+ rr(48,190,720,690,20,'#fbfcfe',C.line,2);tx('PROMPT (PROG part)',76,236,{size:26,weight:800,color:C.pu,ls:1});
+ const dt=(T_P1-T_P0-1)/PROGLINES.length,n=clamp(Math.floor((u-T_P0)/dt),0,PROGLINES.length);
+ for(let k=Math.max(0,n-9);k<n;k++){const age=n-1-k,y=300+(9-1-age)*56+age*0,a=1-age*.08;chip(PROGLINES[k].t,76,300+(8-age)*56-0,'PROG',{size:24,alpha:a})}
+ const cnt=Math.round(NP.prog*eio(prog(u,T_P0+.2,T_P1)));tx(cnt+' / '+NP.prog+' PROG tokens',420,858,{size:30,weight:800,align:'center',mono:true,color:C.pu});
+ table(u,(i,c)=>{const idx=PROGLINES.findIndex(p=>p.row===i&&p.col===c);return idx<0?0:(n>idx?1:n===idx?prog(u,T_P0+idx*dt,T_P0+(idx+1)*dt):0)},-1,null)}
+function phase2(u){
+ const k=clamp(Math.floor((u-T_X0)/STEP),0,3),lu=(u-T_X0)-k*STEP;
+ const cur=k===0?{kind:'ACT',k:PM.entry,val:1}:E[k-1],nxt=E[k];
+ const isRead=cur.kind==='READ';
+ const hotRow=isRead?cur.k:(cur.k===PM.entry?5:5+SUCC.findIndex(s=>s.reg===cur.k));
+ rr(48,190,720,690,20,'#fbfcfe',C.line,2);tx('ONE STEP',76,236,{size:26,weight:800,color:C.blue,ls:1});
+ const f=a=>eo(prog(lu,a,a+.5));
+ tx('current token',76,318,{size:24,weight:700,color:C.mut});ctx.save();ctx.globalAlpha=f(0);chipC(tokLabel(cur),420,372,cur.kind,{size:34});ctx.restore();
+ tx('its slot',76,462,{size:24,weight:700,color:C.mut});ctx.save();ctx.globalAlpha=f(.8);tx(isRead?'op '+cur.k:'nops + r'+cur.k+' = '+(NOPS+cur.k),420,512,{size:34,weight:800,align:'center',mono:true,color:C.pu});ctx.restore();
+ tx('succ[slot]'+(isRead?' + value':''),76,602,{size:24,weight:700,color:C.mut});ctx.save();ctx.globalAlpha=f(1.5);tx(isRead?'ACT r'+OPS[cur.k].dest+' + '+nxt.val:'READ op'+SUCC.find(s=>s.reg===cur.k).next_op,420,652,{size:34,weight:800,align:'center',mono:true,color:C.pu});ctx.restore();
+ tx('next token (emitted by Qwen)',76,742,{size:24,weight:700,color:C.mut});ctx.save();ctx.globalAlpha=f(2.2);chipC(tokLabel(nxt),420,800,nxt.kind,{size:34});ctx.restore();
+ if(isRead){ctx.save();ctx.globalAlpha=f(1.5);tx('value '+nxt.val+' = clip(sum >> '+OPS[cur.k].shift+', 0, 31)',420,700,{size:22,weight:600,align:'center',color:C.mut,mono:true});ctx.restore()}
+ const hot=eo(prog(lu,.5,1.0))*(1-prog(lu,STEP-.4,STEP-.1));
+ table(u,()=>1,hot>.3?hotRow:-1,isRead?'all':'succ')}
+register(T_END+5,u=>{header('','PROGRAM MEMORY',u);
+ if(u<2.2){rr(48,190,1824,690,20,'#fbfcfe',C.line,2);tx('prompt = weights + PROG tokens + input',W/2,420,{size:64,weight:800,align:'center',alpha:eo(prog(u,.2,.8))});tx('the PROG tokens are the program',W/2,520,{size:64,weight:800,align:'center',color:C.pu,alpha:eo(prog(u,.9,1.5))})}
+ else if(u<T_X0)phase1(u);else if(u<T_END)phase2(u);else{phase1(T_P1+1);ctx.save();ctx.globalAlpha=.0;ctx.restore();rr(48,190,720,690,20,'#fbfcfe',C.line,2);
+  ['any order','any skip connection','any depth'].forEach((t,i)=>tx(t,76,330+i*90,{size:44,weight:800,color:C.pu,alpha:eo(prog(u,T_END+.2+i*.5,T_END+.8+i*.5))}));
+  tx('no loops, no data-dependent branches',76,690,{size:30,weight:700,color:C.mut,alpha:eo(prog(u,T_END+1.8,T_END+2.4))})}
+ placeholderTag(u,W-48,183);caption(caps,u)});
+</script></body></html>

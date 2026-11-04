@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>qwentensor</title>
+<meta name="description" content="Write a PyTorch network and run it entirely inside a stock Qwen3.5.">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<nav><div class="wrap"><b>qwentensor</b>
+<a href="#how">How it works</a><a href="#ops">Ops</a><a href="#results">Results</a><a href="#limits">Limits</a><a href="#links">Links</a></div></nav>
+
+<header class="hero"><div class="wrap">
+  <h1>Write a PyTorch network.<br><em>Run it inside Qwen3.5.</em></h1>
+  <p class="lede">qwentensor quantizes a small PyTorch module to an integer graph and compiles it to a prompt that Qwen3.5 executes, one generated token per neuron. It builds on qwenTPU's in-weights integer machine. It is bit-exact against a numpy reference on a CPU simulator of the circuit, and four programs (the digits MLP, a two-tile MLP, a 4-layer MLP, a residual block) have run bit-exact on Qwen3.5-0.8B on an A100. Larger networks have not run on the real model.</p>
+  <div class="btns"><a class="btn primary" href="#how">How it works</a><a class="btn" href="#results">Results</a><a class="btn" href="../DESIGN.md">Design</a><a class="btn" href="https://github.com/Bobliuuu/qwentensor">GitHub</a></div>
+  <div class="stats" id="stats"></div>
+  <p><img src="../anim/hero.gif" alt="a PyTorch network compiled to a prompt that Qwen3.5 executes" style="max-width:100%;border-radius:8px"></p>
+</div></header>
+
+<section id="what"><div class="wrap">
+  <h2>What it is</h2>
+  <p class="sub">qwenTPU put a matrix-multiply machine into Qwen3.5. qwentensor changes what you can run on it: not a fixed kernel, but a network you wrote, with the schedule in the prompt.</p>
+  <div class="cards">
+    <div class="card"><h3>qwenTPU v1</h3><p>A fixed matvec. The host drives the array one operation at a time.</p></div>
+    <div class="card"><h3>qwenTPU v2</h3><p>A hardcoded chain of matvec and requantize stages. The program varies only in widths and depth.</p></div>
+    <div class="card"><h3>qwentensor</h3><p>Any quantized network of the supported ops, written in PyTorch. Successor, destination, column mask and shift of every op are tokens in the prompt.</p></div>
+  </div>
+</div></section>
+
+<section id="how"><div class="wrap">
+  <h2>How it works</h2>
+  <p class="sub">Five stages. Click one.</p>
+  <div class="pipe" id="pipe"></div>
+  <div class="detail" id="detail"></div>
+    <p><img src="../anim/pipeline.gif" alt="the qwentensor pipeline" style="max-width:100%;border-radius:8px"></p>
+  <pre><code>import qwentensor as qt
+
+# model: a trained float nn.Module; Xtr, ytr: training samples and labels
+prog = qt.compile(model, Xtr, input_shape=(15,), labels=ytr,
+                  qat=dict(epochs=60, lr=0.01), backend="sim")  # "qwen" needs a GPU and QWEN_DIR
+print(prog.explain())
+y = prog.run(Xte)        # decoded from the emitted tokens; asserted equal to the numpy reference
+</code></pre>
+</div></section>
+
+<section id="ops"><div class="wrap">
+  <h2>Supported ops</h2>
+  <p class="sub">The authoritative list is in <a href="../IR.md">docs/IR.md</a>. Unsupported ops raise an error at compile time that names the op.</p>
+  <div class="filter" id="opfilter"></div>
+  <div class="scroll"><table class="t" id="opstable"></table></div>
+</div></section>
+
+<section id="results"><div class="wrap">
+  <h2>Results</h2>
+  <p class="sub">Held-out sklearn digits (540), fixed seeds. "Reference" is the bit-exact numpy interpreter of the integer graph. "pending" means not measured yet; in particular only small programs have been run on the real Qwen3.5 (see the Machine columns).</p>
+  <div class="scroll"><table class="t" id="results-table"></table></div>
+</div></section>
+
+<section id="limits"><div class="wrap">
+  <h2>Limits</h2>
+  <ul class="plain">
+    <li>Only small programs have run on the real Qwen3.5 (0.8B, A100): 64 of 64 runs exact (digits MLP 40, plus 24 across a two-tile MLP, a 4-layer MLP and a residual block). The deep MLP and the CNN do not fit and are quantizer results only.</li>
+    <li>The machine is integer (5-bit activations and weights). The network is quantized first, and quantization changes its outputs; the table shows by how much.</li>
+    <li>Size: about 100 neurons is the practical ceiling on the 0.8B model. Every convolution output position is its own set of neurons.</li>
+    <li>No loops, no data-dependent branches. A neuron can read at most <code>fan * (rows - 1)</code> inputs, so a 784-wide first layer does not fit.</li>
+    <li>Only the ops in the table above run. Anything else fails at compile time. Speed is not competitive with running the network directly: one generated token per neuron.</li>
+  </ul>
+</div></section>
+
+<section id="links"><div class="wrap">
+  <h2>Links</h2>
+  <ul class="plain">
+    <li><a href="https://github.com/Bobliuuu/qwentensor">qwentensor on GitHub</a></li>
+    <li><a href="../DESIGN.md">docs/DESIGN.md</a> (write-up), <a href="../IR.md">docs/IR.md</a> (integer graph) and <a href="../EXECUTOR.md">docs/EXECUTOR.md</a> (executor)</li>
+    <li><a href="https://bobliuuu.github.io/qwentpu/">qwenTPU</a>, <a href="https://github.com/Bobliuuu/qwentpu">source</a></li>
+    <li><a href="https://github.com/divagr18/qwenputer">Qwenputer</a> and <a href="https://github.com/divagr18/QwenPU">QwenPU</a>, which established running a machine inside Qwen3.5</li>
+  </ul>
+</div></section>
+
+<footer><div class="wrap">MIT licensed. A sibling project of qwenTPU. Design vocabulary from Qwenputer and QwenPU; no code shared with them.</div></footer>
+
+<script src="data/results.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

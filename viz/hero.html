@@ -1,0 +1,39 @@
+<!doctype html><html><head><meta charset="utf-8"><title>qwentensor hero</title><style>html,body{margin:0;background:#fff}canvas{display:block}</style></head><body><canvas id="c"></canvas>
+<script src="light.js"></script><script src="data/trace.js"></script><script src="common.js"></script><script>
+// Hero clip: PyTorch code typed on the left, the Qwen stack running the lowered network on the right. Data: data/trace.js.
+const E=D.emitted,N=E.length,NP=D.prompt.total,RC=D.run_code||[];
+const LAY=7,SX=1200,SW=340,SY0=232,LH=44,LG=10,TOP=SY0,BOT=SY0+LAY*(LH+LG)-LG,CX=SX+SW/2;
+const PATH=[[CX,640],[CX,206],[1740,206],[1740,640],[CX,640]];
+const T_CODE=.5,T_CODE2=7.5,T_RUN=10.2,T_GEN=13.4,GEN=13,T_END=T_GEN+GEN;
+const caps=[[.6,7.4,'Write a PyTorch model.','a trained nn.Module: linear layers and ReLU'],
+ [7.6,13.2,'Quantize it, lower it, write it as a prompt.','weights, program memory and input become '+NP+' prompt tokens'],
+ [13.6,T_END-.3,'Stock Qwen3.5 runs it. It writes every token itself.','the host does one thing: argmax; append'],
+ [T_END+.2,T_END+3.4,'The answer is the class Qwen wrote.','no Python forward pass: the network ran as tokens']];
+function codePanel(u){rr(48,126,1030,760,20,'#fbfcfe',C.line,2);tx('model.py',80,168,{size:24,weight:700,color:C.mut,mono:true});ln(48,184,1078,184,C.line,2);
+ const total=D.code.reduce((s,l)=>s+l.length+1,0),n=Math.floor(total*prog(u,T_CODE,T_CODE2-.6));const cur=drawCode(D.code,n,80,250,60,30);
+ let cur2=null;if(u>T_CODE2){const t2=RC.reduce((s,l)=>s+l.length+1,0);cur2=drawCode(RC,Math.floor(t2*prog(u,T_CODE2,T_CODE2+2.2)),80,250+(D.code.length+1)*60,60,30)}
+ const c=cur2||cur;if(c&&u<T_RUN&&Math.floor(u*3)%2===0)rr(c[0]+2,c[1]-30,14,38,2,C.blue)}
+function stack(u,st){
+ rr(1110,126,760,760,20,'#fbfcfe',C.line,2);tx('Qwen3.5  (stock weights)',1140,168,{size:28,weight:800,color:C.blue});ln(1110,184,1870,184,C.line,2);
+ const lit=st.y;for(let i=0;i<LAY;i++){const y=BOT-LH-i*(LH+LG)+0,on=lit!=null&&Math.abs((y+LH/2)-lit)<(LH+LG)*.6;
+  rr(SX,y,SW,LH,12,on?C.bluel:C.panel,on?C.blue:C.line,on?3:2);tx('decoder layer '+(i===LAY-1?'N':i+1),SX+SW/2,y+30,{size:22,weight:700,align:'center',color:on?C.blue:C.mut,mono:true})}
+ // prompt cells flowing in
+ const pf=prog(u,T_RUN,T_GEN-.3);ctx.save();ctx.strokeStyle=C.gr;ctx.lineWidth=5;ctx.setLineDash([14,10]);ctx.globalAlpha=.45*prog(u,T_GEN-.5,T_GEN+.3);ctx.beginPath();PATH.forEach((p,i)=>i?ctx.lineTo(p[0],p[1]):ctx.moveTo(p[0],p[1]));ctx.stroke();ctx.restore();
+ if(u>=T_RUN){const f=eio(pf),r=tokenStrip(D.prompt.kinds,1140,694,700,36,f,70);
+  tx('prompt  '+Math.floor(NP*f)+' / '+NP+' tokens',1140,680,{size:24,weight:800,mono:true,color:C.blue})}
+ const ha=prog(u,T_GEN,T_GEN+.6);['host:','argmax;','append'].forEach((l,i)=>tx(l,1640,400+i*34,{size:26,weight:800,color:C.or,align:'center',alpha:ha}));
+ if(st.n>=0){const t=E[st.n];const [x,y]=alongPath(PATH,st.n>=N-1?0:clamp(st.frac*1.15));chipC(tokLabel(t),x,y,t.kind)}
+ // tape
+ }
+function gstate(u){const t=(u-T_GEN)/(GEN-1.6);if(u<T_GEN)return{n:-1,frac:0,y:null};
+ // slow start for the first 5 tokens, then fast-forward
+ const SL=.7,NS=4,t1=T_GEN+NS*SL;let n,frac;if(u<t1){const q=(u-T_GEN)/SL;n=Math.floor(q);frac=q-n}else{const q=eio(prog(u,t1,T_END-1.2));n=Math.min(N-1,NS+Math.floor(q*(N-NS)));frac=(u*7)%1;if(u>=T_END-1.2){n=N-1;frac=1}}
+ const [x,y]=alongPath(PATH,n>=N-1?0:clamp(frac*1.15));return{n,frac,y:(x===CX&&y<BOT+30&&y>TOP-10)?y:null}}
+register(T_END+3.6,u=>{header('','WRITE AN NN, RUN IT IN QWEN',u);codePanel(u);const st=gstate(u);stack(u,st);
+ const cnt=st.n<0?0:Math.min(N,st.n+1);
+ if(u>=T_GEN){tx('written by Qwen',1140,782,{size:24,weight:700,color:C.mut});tx(`${cnt} of ${N} tokens`,1840,782,{size:28,weight:800,align:'right',mono:true,color:C.blue})}
+ let x=1140;const ty=806;const j0=Math.max(0,cnt-12);if(j0>0){tx('...',x,ty+22,{size:24,weight:800,color:C.mut});x+=44}
+ for(let j=j0;j<cnt;j++){const t=E[j];const lab=t.kind==='READ'?'R'+t.k:t.kind==='HALT'?'H':String(t.val);const w=chip(lab,x,ty-8,t.kind,{size:22,pad:20,alpha:j===cnt-1?clamp(st.frac*3):1});x+=w+6;if(x>1790)break}
+ if(st.n>=N-1&&u>T_END){const e=eob(prog(u,T_END,T_END+.6));ctx.save();ctx.translate(CX,430);ctx.scale(clamp(e,0,1.05),clamp(e,0,1.05));rr(-200,-44,400,76,18,C.grl,C.gr,3);tx(`class ${D.result.pred} (label ${D.result.label})`,0,10,{size:38,weight:800,align:'center',color:C.gr});ctx.restore()}
+ placeholderTag(u,W-60,117);caption(caps,u)});
+</script></body></html>

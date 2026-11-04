@@ -1,0 +1,52 @@
+<!doctype html><html><head><meta charset="utf-8"><title>qwentensor shift and bias</title><style>html,body{margin:0;background:#fff}canvas{display:block}</style></head><body><canvas id="c"></canvas>
+<script src="light.js"></script><script src="data/trace.js"></script><script src="common.js"></script><script>
+// Why the requantize shift and the bias rows matter. Sums are the REAL layer-1 accumulators of the traced digit (trace.accum);
+// accuracies are the frontend's measured numbers (trace.study = viz/study.py, same seeds as examples/*.py; README table).
+const A=D.accum,Y=A.y,V=A.v,S=D.study.digits,DP=D.study.deep,AMAX=A.amax,SH=A.shift;
+const V0=Y.map(y=>clamp(y,0,AMAX));const sat=V0.filter(v=>v>=AMAX).length,zero=V0.filter(v=>v===0).length;
+const T_B=21,T_END=40;
+const caps=[[.5,6.5,'Accumulator sums are large. Activations are 5 bits: 0..31.','these are the 15 real sums of layer 1 for one digit; with shift 0 they just clamp'],
+ [6.8,12.6,'A per-op shift divides the sum before relu and clamp: y >> '+SH+'.','the shift is a PROG word per op, chosen by the quantizer from calibration data'],
+ [12.8,T_B-.4,'Without the shift, accuracy collapses.','post-training quantization, held-out digits: shift 0 versus a per-layer shift'],
+ [T_B+.4,T_B+8.6,'The bias is a weight on a constant-1 row.','its range is -16..15 in sum units: after a shift of '+SH+' that is about one activation level'],
+ [T_B+8.8,T_END-.6,'More constant rows widen the bias range.','costs registers: 4 of 16 rows per tile hold constants, so fewer inputs fit per tile']];
+function bars(x0,vals,max,col,hi,t,label,sub,raw){
+ const bw=46,gap=8,H=270,base=560;rr(x0-20,226,15*(bw+gap)+34,420,18,'#fbfcfe',C.line,2);tx(label,x0,262,{size:26,weight:800,color:col});
+ vals.forEach((v,i)=>{const e=eo(prog(t,i*.05,i*.05+.6)),h=H*v/max*e,x=x0+i*(bw+gap),stuck=hi&&v>=AMAX;
+  rr(x,base-h,bw,Math.max(2,h),6,stuck?C.pkl:col==='gr'?C.grl:C.bluel,stuck?C.pk:col,2);tx(String(raw?raw[i]:v),x+bw/2,base+24,{size:16,weight:700,align:'center',mono:true,color:C.mut})});
+ ln(x0-6,base-H*AMAX/max,x0+15*(bw+gap),base-H*AMAX/max,C.gr,2,[8,6]);tx('31',x0-10,base-H*AMAX/max+6,{size:18,weight:800,align:'right',color:C.gr,mono:true});
+ tx('raw sum y under each bar',x0,base+52,{size:18,weight:600,color:C.mut});tx(sub,x0+15*(bw+gap),262,{size:22,weight:700,align:'right',color:C.mut})}
+function accbars(x,y,w,items,t){items.forEach(([l,v,c],i)=>{const yy=y+i*52;tx(l,x,yy+30,{size:24,weight:700});rr(x+560,yy,w,38,12,C.panel,C.line,1.5);rr(x+560,yy,w*v*eo(prog(t,.2+i*.3,1.2+i*.3)),38,12,c);tx(accTxt(v),x+560+w+20,yy+31,{size:30,weight:800,mono:true})})}
+function sA(u){
+ const t=u;bars(100,V0,AMAX,C.blue,true,prog(t,.5,2.5)*2.5,'shift 0:  clip(y, 0, 31)',`${sat} of 15 stuck at 31, ${zero} at 0`,Y);
+ const e=eo(prog(u,6.8,7.6));ctx.save();ctx.globalAlpha=e;bars(1000,V,AMAX,C.gr,false,Math.max(0,u-7),'shift '+SH+':  clip(y >> '+SH+', 0, 31)','distinct values survive',Y);ctx.restore();
+ if(u>6.6){ctx.save();ctx.globalAlpha=eo(prog(u,6.6,7.2));arrow(930,430,990,430,C.blue,5);ctx.restore()}
+ const a=eo(prog(u,13,13.8));ctx.save();ctx.globalAlpha=a;rr(70,690,1780,196,20,'#fbfcfe',C.line,2);
+ tx('POST-TRAINING QUANTIZATION ACCURACY, held-out digits',100,728,{size:22,weight:800,color:C.mut,ls:1});
+ const t2=u-13;accbars(100,744,820,[['digits MLP, shift 0 (v2.0, input 0..12)',S.v20_ptq,C.gy],['digits MLP, per-layer shift (v2.1)',S.v21_ptq,C.blue]],t2);
+ accbars(1000,744,0.0001,[],0);ctx.restore();
+ const b=eo(prog(u,15.5,16.3));ctx.save();ctx.globalAlpha=b;ctx.restore()}
+function sA2(u){}
+function tile(x,y,nb,t){tx('one 16-row tile of the register file',x,y-20,{size:24,weight:800,color:C.mut});
+ for(let r=0;r<16;r++){const bias=r>=16-nb,yy=y+r*34,a=eo(prog(t,r*.03,r*.03+.4));ctx.save();ctx.globalAlpha=a;rr(x,yy,300,30,6,bias?C.orl:C.panel,bias?C.or:C.line,bias?2.5:1.5);tx(bias?'row '+r+'  constant 1 (bias)':'row '+r+'  input / activation',x+150,yy+22,{size:18,weight:700,align:'center',mono:true,color:bias?C.or:C.mut});ctx.restore()}}
+function sB(u){
+ const nb2=u>8?4:1;tile(70,260,1,u);tx('bias_rows = 1',220,830,{size:28,weight:800,align:'center'});
+ const e=eo(prog(u,8.6,9.6));ctx.save();ctx.globalAlpha=e;tile(480,260,4,Math.max(0,u-8.6));tx('bias_rows = 4',630,830,{size:28,weight:800,align:'center',color:C.or});ctx.restore();
+ // numbers
+ tx('biases that did not fit (clipped)',900,236,{size:26,weight:800,color:C.mut});
+ const c1=S.v21_ptq_bias_clipped,c4=S.v21_b4_ptq_bias_clipped;
+ const rows=[['layer 1, 1 row',c1[0],C.gy],['layer 2, 1 row',c1[1],C.gy],['layer 1, 4 rows',c4[0],C.or],['layer 2, 4 rows',c4[1],C.or]];
+ const f=eo(prog(u,3,4.5));rows.forEach(([l,v,c],i)=>{const yy=262+i*54;tx(l,900,yy+30,{size:24,weight:700,alpha:f});rr(1180,yy,500,38,12,C.panel,C.line,1.5);if(i<2||u>8.6)rr(1180,yy,500*v*eo(prog(u,i<2?3.2:9,i<2?4.4:10.2)),38,12,c);if(i<2||u>8.6)tx((v*100).toFixed(0)+'%',1700,yy+31,{size:30,weight:800,mono:true})});
+ tx('post-training quantization accuracy',900,538,{size:26,weight:800,color:C.mut});
+ const acc=[['1 bias row',S.v21_ptq,C.gy,3.5],['4 bias rows',S.v21_b4_ptq,C.or,9.6]];
+ acc.forEach(([l,v,c,t0],i)=>{const yy=564+i*54;if(u<t0)return;tx(l,900,yy+30,{size:24,weight:700});rr(1180,yy,500,38,12,C.panel,C.line,1.5);rr(1180,yy,500*v*eo(prog(u,t0,t0+1)),38,12,c);tx(accTxt(v),1700,yy+31,{size:30,weight:800,mono:true})});
+ if(u>12){const q=eo(prog(u,12,13));ctx.save();ctx.globalAlpha=q;tx(`after QAT: ${accTxt(S.v21_qat)} (1 row)  ${accTxt(S.v21_b4_qat)} (4 rows);  float ${accTxt(S.float)}`,900,730,{size:26,weight:800,color:C.ink});tx('the machine builds either; the quantizer picks bias_rows',900,774,{size:22,weight:600,color:C.mut});ctx.restore()}}
+function sDeep(u){rr(48,190,W-96,690,20,'#fbfcfe',C.line,2);tx('the same effect on a deeper network',W/2,260,{size:34,weight:800,align:'center',color:C.mut});
+ tx('deep MLP 64-96-64-32-10',W/2,330,{size:40,weight:800,align:'center'});
+ accbars(280,380,700,[['float',DP.float,C.gy],['shift 0 (v2.0), PTQ',DP.v20_ptq,C.pk],['per-layer shift (v2.1), PTQ',DP.v21_ptq,C.blue]],u);
+ tx('shifts chosen per layer: '+DP.v21_ptq_shifts.join(', '),W/2,640,{size:28,weight:700,align:'center',mono:true,color:C.mut,alpha:eo(prog(u,2,2.8))});
+ tx('a shift of 0 ties every layer\'s output scale to the 5-bit weight range',W/2,720,{size:30,weight:700,align:'center',alpha:eo(prog(u,3,3.8))})}
+register(T_END+1,u=>{header('','SHIFT AND BIAS',u);
+ if(u<T_B-4.4+0)sA(u);else if(u<T_B-.4)sDeep(u-(T_B-4.4));else sB(u-T_B);
+ placeholderTag(u,W-48,183);caption(caps,u)});
+</script></body></html>
