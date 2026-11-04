@@ -28,7 +28,8 @@ print(net.predict(x))                                                    # token
 * ✅ bit-exact vs a numpy golden on a real Qwen3.5-0.8B (A100): **40/40** digits MLP, **24/24** across four different programs
 * 🤖 the host does only `argmax; append`
 
-<p align="center"><img src="docs/anim/hero.gif" alt="a PyTorch network compiled to a prompt that Qwen3.5 executes" width="100%"></p>
+<p align="center"><a href="docs/qwentensor_demo.mp4"><img src="docs/anim/hero.gif" alt="a PyTorch network compiled to a prompt that Qwen3.5 executes" width="100%"></a><br>
+🎬 <a href="docs/qwentensor_demo.mp4"><b>Watch the 1:42 demo video</b></a> (hero, program memory, shift requantize)</p>
 
 **📍 Status.** The frontend, quantizer and bit-exact numpy golden are done. The executor reproduces the golden bit-for-bit on a **CPU simulator of the circuit**
 (qwenTPU's float64 circuit-IR evaluator). On the real model, **four programs have been run**. First, the quantized digits MLP 15-15-10 (u5s5, shifts 2 and 4) on
@@ -115,6 +116,16 @@ Errors: `qt.UnsupportedOpError` names the op; `qt.DoesNotFit` gives the neuron c
 `DoesNotFit` also checks the 126-column limit: every register tile a neuron reads costs one column, so a 64-input layer needs about 5 columns per neuron.
 Step-by-step (what `compile` does): `frontend.from_torch` -> `quant.quantize(fg, X_calib, QConfig("v2.1", bias_rows=4))` -> optional `quant.qat` ->
 `machine.sched.compile_graph` -> `Program.prompt()`.
+
+## 🏗️ Architecture at a glance
+
+<p align="center"><img src="viz/images/architecture.png" alt="architecture: nn.Module to torch.fx to quantize to integer IR to prompt to Qwen3.5" width="100%"></p>
+
+<p align="center"><img src="viz/images/prompt_layout.png" alt="prompt layout: weights, program and input tokens, then the tokens Qwen emits" width="100%"></p>
+
+Prompt and emitted-token counts vary with the network and the Spec; the diagram shows one digits-MLP build.
+
+<p align="center"><img src="viz/images/quantization.png" alt="float weights to 5-bit integers, accuracy float vs PTQ vs QAT" width="100%"></p>
 
 ## 🧩 Supported PyTorch ops
 
