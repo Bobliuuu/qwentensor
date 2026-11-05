@@ -85,3 +85,12 @@ def test_one_machine_many_programs(lanes):
     for g, n in ((mk_graph(rng, [6, 5, 3], [1, 2]), 6), (mk_graph(rng, [5, 4, 4, 2], [2, 1, 3]), 5), (residual(rng), 5)):
         comp = compile_vec(g, rows=rows, lanes=lanes, spec_override=sp)
         for _ in range(2): check(comp, m, rng.integers(0, 8, n), g)
+
+
+def test_block_align_places_each_node_on_a_fresh_block():
+    rng = np.random.default_rng(9)
+    g = mk_graph(rng, [6, 5, 3], [1, 2])
+    plain, aligned = compile_vec(g, rows=8, lanes=2), compile_vec(g, rows=8, lanes=2, block_align=True)
+    assert aligned.spec.nblk > plain.spec.nblk and aligned.spec.fan <= plain.spec.fan
+    m = VecMachine(aligned.spec)
+    for _ in range(2): check(aligned, m, rng.integers(0, 8, 6), g)

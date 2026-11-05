@@ -406,15 +406,18 @@ class VCompiled:
         return np.array([val.get(r, 0) if r >= 0 else 0 for r in self.out_regs], dtype=np.int64)
 
 
-def compile_vec(g, rows=16, lanes=2, spec_override=None, fan=None, smax=None):
+def compile_vec(g, rows=16, lanes=2, spec_override=None, fan=None, smax=None, block_align=False):
     """qwentensor.ir.Graph -> VSpec + VProgram skeleton.  Neurons of one matvec node are paired into op groups (lane l = neuron
-    index mod lanes within the node); each node starts on a fresh group.  `spec_override`: fit the graph onto an existing machine."""
+    index mod lanes within the node); each node starts on a fresh group.  `spec_override`: fit the graph onto an existing machine.
+    `block_align`: start every node on a fresh block of groups (fewer columns per neuron, more blocks)."""
     g.validate(machine=True)
     L = lanes; br = g.bias_rows; dr = rows - br; assert dr >= 1
     lo, hi = g.wlo, g.whi
     cur = [0]                                    # slot counter: slot s -> group index s // L (data groups only), lane s % L
 
-    def align(): cur[0] = -(-cur[0] // L) * L
+    def align():
+        cur[0] = -(-cur[0] // L) * L
+        if block_align: cur[0] = -(-cur[0] // (L * dr)) * (L * dr)          # a fresh block per node: its consumers touch only that block's tiles
 
     def new_reg():
         gi, l = divmod(cur[0], L); cur[0] += 1
