@@ -78,13 +78,20 @@ class Program:
         if backend not in ("sim", "qwen"):
             raise ValueError(f"backend must be 'sim' or 'qwen', got {backend!r}")
         self.graph, self.backend, self.rows, self.float_graph, self.verify = graph, backend, rows, float_graph, verify
-        self._spec_kw = spec_kw
+        self._spec_kw = dict(spec_kw)
+        self.lanes = spec_kw.pop("lanes", None)              # vectorized machine: neuron results per emitted token (docs/VECTORIZED.md)
         try:
-            self.comp = compile_graph(graph, rows=rows, **spec_kw)
+            if self.lanes:
+                from .machine.vec import compile_vec
+                self.comp = compile_vec(graph, rows=rows, lanes=self.lanes, **spec_kw)
+            else:
+                self.comp = compile_graph(graph, rows=rows, **spec_kw)
         except _SchedDoesNotFit as e:
             raise _fit_error(graph, e) from None
         self.spec = self.comp.spec
-        if self.spec.ncols > MAX_COLS:
+        if self.lanes and max(len(c) for c in self.spec.cls_cols) > MAX_COLS:
+            raise _fit_error(graph, f"a lane class needs {max(len(c) for c in self.spec.cls_cols)} physical columns but a mask head holds at most {MAX_COLS}")
+        if not self.lanes and self.spec.ncols > MAX_COLS:
             raise _fit_error(graph, f"the program needs {self.spec.ncols} physical columns (weight columns, one or more per neuron per touched tile) "
                                     f"but a program-memory mask head holds at most {MAX_COLS}")
         self._machine = None
@@ -95,8 +102,12 @@ class Program:
     def _backend_machine(self):
         if self._machine is None:
             if self.backend == "sim":
-                from .machine.run import IRMachine
-                self._machine = IRMachine(self.spec)
+                if self.lanes:
+                    from .machine.vec import VecMachine
+                    self._machine = VecMachine(self.spec)
+                else:
+                    from .machine.run import IRMachine
+                    self._machine = IRMachine(self.spec)
             else:
                 self._machine = _QwenMachine(self.spec)
         return self._machine
@@ -162,7 +173,7 @@ class Program:
         """Static cost: IR tile-matvec model plus the machine program size."""
         sp = self.spec; c = self.graph.cost(sp.rows, sp.rows)
         zero = self.comp.program(np.zeros(len(self.comp.in_regs), dtype=np.int64))
-        return dict(neurons=len(self.comp.neurons), ops=len(self.comp.ops), registers=sp.nreg, tiles=sp.tiles, columns=sp.ncols,
+        return dict(neurons=len(self.comp.neurons), ops=len(self.comp.groups if self.lanes else self.comp.ops), registers=sp.nreg, tiles=sp.tiles, columns=sp.ncols,
                     weight_cells=len(self.comp.W), prompt_tokens_empty_input=len(zero.prompt()), spec=str(sp),
                     ir=c, total_tile_matvecs=c["total_tile_matvecs"])
 
@@ -170,10 +181,12 @@ class Program:
         g, sp = self.graph, self.spec; c = self.cost()
         lines = [f"qwentensor Program  backend={self.backend}  profile={g.profile} u{g.ab}s{g.wb} bias_rows={g.bias_rows}",
                  g.summary(), "",
-                 f"machine: {sp.tiles} tile(s) x {sp.rows} rows, columns/tile {sp.cols}, fan {sp.fan}, nops {sp.nops}, smax {sp.smax}",
+                 (f"machine: {sp.tiles} tile(s) x {sp.rows} rows, {sp.lanes} lanes, columns/tile {sp.cols}, fan {sp.fan}, smax {sp.smax}" if self.lanes else
+                  f"machine: {sp.tiles} tile(s) x {sp.rows} rows, columns/tile {sp.cols}, fan {sp.fan}, nops {sp.nops}, smax {sp.smax}"),
                  f"program: {c['neurons']} neurons = {c['ops']} ops, {c['registers']} registers, {c['columns']} columns, "
                  f"{c['weight_cells']} weight cells, prompt ~{c['prompt_tokens_empty_input']} tokens (+1 per nonzero input)",
-                 "each op = one generated token (ACT of the result); the host loop is argmax-and-append, nothing else.",
+                 (f"each op group ({self.lanes} neurons) = one generated token; the host loop is argmax-and-append, nothing else." if self.lanes else
+                  "each op = one generated token (ACT of the result); the host loop is argmax-and-append, nothing else."),
                  f"pipeline: from_torch -> quantize{'+qat' if g.meta.get('qat_train_acc') is not None else ''} -> compile_graph -> prompt -> generate -> decode == reference.run"]
         return "\n".join(lines)
 
@@ -262,7 +275,10 @@ class _QwenMachine:
         if not src: raise RuntimeError("backend='qwen' needs QWEN_DIR (path to the Qwen3.5 checkpoint). Use backend='sim' on CPU.")
         if not torch.cuda.is_available(): raise RuntimeError("backend='qwen' needs a CUDA GPU (A100). Use backend='sim' on CPU.")
         from qwentpu.merge import build_merged, instantiate
-        from .machine.gpu import install
+        if hasattr(spec, "lanes"):
+            from .machine.vec import install_vec as install
+        else:
+            from .machine.gpu import install
         install(spec)
         tc, sd, v0, lay, g = build_merged(src, mute_qwen=False)
         self.model, self.v0 = instantiate(tc, sd, "cuda"), v0
@@ -278,6 +294,7 @@ def compile(model, calib_data=None, input_shape=None, *, profile="v2.1", backend
     """Compile a torch.nn.Module (or a float/integer ir.Graph) to a machine Program.
     calib_data: samples used for quantization calibration (N, *input_shape).  profile: "v2.1" (shift 0..15) or "v2.0" (no shift).
     qat: None | True | dict(epochs=..., lr=...) -> STE fine-tune (needs labels).
+    lanes=N (extra keyword): vectorized machine, N neuron results per emitted token and no READ token (docs/VECTORIZED.md).
     paged=True: a network larger than one machine runs as pages of at most max_cols columns / max_ops ops on one shared machine
     (weight streaming through the prompt; docs/STREAMING.md); returns a PagedProgram with the same interface."""
     fg, g = _to_graph(model, calib_data, input_shape, profile, ab, wb, bias_rows, qat, labels, input_posneg, input_kind, input_max)

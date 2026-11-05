@@ -94,3 +94,23 @@ def test_block_align_places_each_node_on_a_fresh_block():
     assert aligned.spec.nblk > plain.spec.nblk and aligned.spec.fan <= plain.spec.fan
     m = VecMachine(aligned.spec)
     for _ in range(2): check(aligned, m, rng.integers(0, 8, 6), g)
+
+
+@pytest.mark.parametrize("lanes", [1, 2])
+def test_api_lanes_option(lanes, tmp_path):
+    import torch, torch.nn as nn
+    import qwentensor as qt
+    torch.manual_seed(0)
+    rng = np.random.default_rng(0)
+    X = rng.random((120, 6)); y = (X[:, :3].sum(1) > X[:, 3:].sum(1)).astype(int) + (X[:, 0] > 0.5)
+    m = nn.Sequential(nn.Linear(6, 5), nn.ReLU(), nn.Linear(5, 3)).double()
+    opt = torch.optim.Adam(m.parameters(), 0.05); Xt, yt = torch.tensor(X), torch.tensor(y)
+    for _ in range(100):
+        loss = nn.functional.cross_entropy(m(Xt), yt); opt.zero_grad(); loss.backward(); opt.step()
+    prog = qt.compile(m.eval(), X, input_shape=(6,), backend="sim", lanes=lanes, rows=8)
+    out = prog.run(X[:2])
+    assert (out == prog.reference(X[:2])).all()
+    assert prog.last["emitted_tokens_total"] == 2 * (-(-5 // lanes) + -(-3 // lanes))
+    assert f"{lanes} " in prog.explain() and prog.cost()["ops"] == -(-5 // lanes) + -(-3 // lanes)
+    p = tmp_path / "p.json"; prog.save(p); again = qt.load(p)
+    assert again.lanes == lanes and (again.run(X[:2]) == out).all()
