@@ -1,5 +1,5 @@
 """Run the executor on the real merged Qwen3.5 (A100).  Host = generate(): argmax; append.  Everything else is in the model.
-usage: python scripts/gpu_run.py <phase>   phase: digits | general | residual | throughput | stream
+usage: python scripts/gpu_run.py <phase>   phase: digits | general | residual | throughput | stream | wide
 env: QWEN_DIR = checkpoint dir (default 0.8B), QWENTPU_SRC = qwenTPU repo, TAG = label printed in the log"""
 import os, sys, time
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -158,4 +158,13 @@ elif phase == "stream":
         print(f"[stream] {title}: integer accuracy of reference.run on all {len(z['y'])} held-out digits = {(z['ref'].argmax(1) == z['y']).mean():.4f}", flush=True)
         run_stream(f"stream:{name}", g, z, n, readouts=("code", "lm_head"))
         print(f"[stream] argmax accuracy of the reference outputs on these {n} digits: {(z['ref'][:n].argmax(1) == z['y'][:n]).mean():.2f}", flush=True)
+elif phase == "wide":
+    n = int(os.environ.get("N", 10)); want = os.environ.get("NETS", "deep,residual,cnn").split(",")
+    titles = {"deep": "deep MLP 64-96-64-32-10", "residual": "residual MLP 64-32-[32+res]-10", "cnn": "CNN conv4 -> conv8 -> AvgPool -> Linear(128->10) (512-wide Linear)"}
+    for name in want:
+        title = titles[name]
+        g = Graph.load(os.path.join(DATA, f"wide_{name}.json")); z = np.load(os.path.join(DATA, f"wide_samples_{name}.npz"))
+        print(f"[wide] {title}: integer accuracy of reference.run on all {len(z['y'])} held-out digits = {(z['ref'].argmax(1) == z['y']).mean():.4f}", flush=True)
+        run_stream(f"wide:{name}", g, z, n, readouts=("code", "lm_head"))
+        print(f"[wide] argmax accuracy of the reference outputs on these {n} digits: {(z['ref'][:n].argmax(1) == z['y'][:n]).mean():.2f}", flush=True)
 print("TOTAL BAD", bad)

@@ -70,3 +70,29 @@ def test_three_groups_96_inputs_extremes():
 def test_twelve_groups_512_inputs():
     sp, want = _run_wide(512, 1, 5, False, (5,))
     assert sp.ngroups == 12 and sp.fan == 35
+
+
+def test_paged_784_wide_first_layer():
+    """A 784-wide first layer (53 tiles, 18 groups) runs paged, bit-exact in the circuit simulator."""
+    from qwentensor.machine.pages import compile_paged, golden_executor, sim_executor
+    from test_machine_stream import mk_mlp, run_paged
+    rng = np.random.default_rng(11); g = mk_mlp(rng, [784, 6, 4], [6, 5], ab=5, wb=5)
+    for n in g.matvecs(): n.W = rng.integers(1, 4, n.W.shape) * rng.choice([-1, 1], n.W.shape)   # small nonzero weights: every register is read
+    pc = compile_paged(g, rows=16, max_cols=60, max_ops=8)
+    assert pc.spec.ngroups == 18 and pc.spec.fan == 53
+    xq = rng.integers(0, 32, (4, 784))
+    run_paged(pc, g, xq, golden_executor())
+    run_paged(pc, g, xq[:1], sim_executor(pc.spec))
+
+
+def test_group_overflow_is_reported():
+    """Duplicated source registers sum their weights, and a sum beyond the 5-bit range is split over extra columns of the same tile.
+    Too many columns inside one tile group is a DoesNotFit, not a wrong answer."""
+    import pytest
+    from qwentensor.ir import Graph, Node
+    from qwentensor.machine.sched import compile_graph, DoesNotFit
+    idx = list(range(64)) + list(range(15))                               # the first 15 inputs appear twice: weight 15 + 15 = 30 = two columns
+    g = Graph([Node("x", "input", [], 64), Node("d", "gather", ["x"], len(idx), index=np.array(idx)),
+               Node("fc", "matvec", ["d"], 2, W=np.full((len(idx), 2), 15, dtype=np.int64), b=np.zeros(2, dtype=np.int64), shift=6)],
+              "fc", ab=5, wb=5, profile="v2.1")
+    with pytest.raises(DoesNotFit, match="tile group"): compile_graph(g, rows=16)
