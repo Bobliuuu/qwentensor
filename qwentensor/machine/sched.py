@@ -13,7 +13,7 @@ from dataclasses import dataclass, field
 import numpy as np
 
 from .asm import Op, Program
-from .spec import Spec
+from .spec import Spec, group_fan
 
 
 class DoesNotFit(Exception):
@@ -101,7 +101,12 @@ def compile_graph(g, rows=16, spec_override=None, nops=None, smax=None, fan=None
     return compile_neurons(g, rows, neurons, in_regs, out_regs, counter[0], spec_override, nops, smax, fan, min_cols)
 
 
-def compile_neurons(g, rows, neurons, in_regs, out_regs, nreg_used, spec_override=None, nops=None, smax=None, fan=None, min_cols=None):
+def wide_needed(neurons, rows, br=1):
+    """True if some neuron reads more registers than one adder-tree group can sum (group_fan(rows) columns of rows - bias_rows registers)."""
+    return any(len(nu.wts) > group_fan(rows) * (rows - br) for nu in neurons)
+
+
+def compile_neurons(g, rows, neurons, in_regs, out_regs, nreg_used, spec_override=None, nops=None, smax=None, fan=None, min_cols=None, wide=None):
     """Columns, Spec and the program skeleton for an explicit neuron list.  `g` supplies ab, wb, bias_rows and the weight range
     (any ir.Graph header; its matvec nodes are not read).  `nreg_used` registers were allocated by the caller in the
     `(k // dr) * rows + k % dr` pattern (inputs first, then one destination per neuron).  compile_graph and machine.pages use this."""
@@ -130,9 +135,21 @@ def compile_neurons(g, rows, neurons, in_regs, out_regs, nreg_used, spec_overrid
     cols = tuple(used)
     fan_need = max([len(nu.cols) for nu in neurons] + [1])
     smax_need = max([nu.shift for nu in neurons] + [0])
+    # tile groups (docs/WIDE.md): a neuron wider than one adder tree sums its tiles in groups of `tpg` tiles
+    if spec_override is not None: tpg, gfan = spec_override.tpg, spec_override.gfan
+    elif (wide if wide is not None else wide_needed(neurons, rows, br)): tpg = gfan = group_fan(rows)
+    else: tpg = gfan = 0
+    if tpg:
+        for nu in neurons:
+            per = {}
+            for t, _ in nu.cols: per[t // tpg] = per.get(t // tpg, 0) + 1
+            if max(per.values(), default=0) > gfan:
+                raise DoesNotFit(f"{nu.name}: {max(per.values())} active columns in one tile group (limit {gfan}: split weights beyond [{lo}, {hi}] use extra columns)")
+    elif spec_override is not None and wide_needed(neurons, rows, br):
+        raise DoesNotFit(f"{len(neurons)} neurons include a neuron wider than one adder tree; the machine has no tile groups (tpg=0)")
     spec = Spec(rows=rows, cols=cols if min_cols is None else tuple(max(a, b) for a, b in zip(cols, min_cols)),
                 ab=g.ab, wb=g.wb, nops=max(nops or 0, len(neurons), 1), fan=max(fan or 0, fan_need),
-                smax=max(smax or 0, smax_need)) if spec_override is None else spec_override
+                smax=max(smax or 0, smax_need), tpg=tpg, gfan=gfan) if spec_override is None else spec_override
     if spec_override is not None:
         sp = spec_override
         if sp.rows != rows or sp.tiles < ntile or any(u > c for u, c in zip(used, sp.cols)) or len(neurons) > sp.nops \

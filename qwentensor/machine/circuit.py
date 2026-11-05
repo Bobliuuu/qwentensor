@@ -16,6 +16,7 @@ from qwentpu.compiler.gadgets import Circ
 from qwentpu.compiler.ir import A_BIT, A_REF, K, Expr
 
 from .spec import Spec
+from .wide import normalize
 
 S_CODE = 2 ** 12
 
@@ -27,7 +28,7 @@ def build(sp: Spec):
     assert KS & (KS - 1) == 0 and KS <= 128 and NOPS <= 128
     QROWS = KS if (KS.bit_length() - 1) % 2 else 2 * KS      # multi-hot query size n with n*128 a power of 4
     assert QROWS <= 128, "rows=64 needs 128 query rows ... unsupported"
-    F = KS * sp.fan
+    F = KS * sp.gf
     assert F <= 256, "sum of fan*rows counts must stay bf16-exact (<= 256) for the shift mux"
     ref = {0: A_REF * one, 1: A_REF * one}
 
@@ -98,7 +99,10 @@ def build(sp: Spec):
 
     # ---------------------------------------------------------------- adder tree
     neg = 1 << (WB - 1)
-    Sab = {(a, b): sum((cnt[c][a * WB + b] for c in range(NC)), Expr()) for a in range(AB) for b in range(WB)}
+    G = sp.ngroups
+    Sg = [{(a, b): sum((cnt[c][a * WB + b] for c in range(NC) if sp.col_group(c) == gm), Expr()) for a in range(AB) for b in range(WB)}
+          for gm in range(G)]
+    Sab = Sg[0]
     sgn = lambda b: -1 if b == WB - 1 else 1
 
     def rng(p):
@@ -109,7 +113,30 @@ def build(sp: Spec):
     P0 = AB + WB - 1
     sm = sp.smax
     digits = []
-    if not sm:
+    if G > 1:
+        # several groups (docs/WIDE.md): each group's accumulator is normalised on its own, the tiny digits are summed over the groups
+        comb = {}
+        for gm in range(G):
+            dg = []
+            for p in range(P0):
+                e = sum((Sg[gm][(a, p - a)] * sgn(p - a) for a in range(AB) if 0 <= p - a < WB), Expr())
+                lo, hi = rng(p); dg.append((e, lo, hi))
+            for pos, (e, lo, hi) in normalize(g, dg, f"norm{gm}").items():
+                x = comb.get(pos); comb[pos] = (e, lo, hi) if x is None else (x[0] + e, x[1] + lo, x[2] + hi)
+        top = max(comb); D = [comb.get(j, (0 * one, 0, 0)) for j in range(top + 1)]
+        if not sm:
+            rq = N.requant(g, D, shift=0, amax=sp.amax, name="rq")
+        else:
+            for pp in range(top + 1 + sm):
+                units = []; rs = []
+                for s in range(sm + 1):
+                    p = pp - (sm - s)
+                    if 0 <= p <= top and D[p][0] is not None and (D[p][1], D[p][2]) != (0, 0):
+                        units.append((1, D[p][0], shd[s])); rs.append(D[p][1:])
+                lo = min([0] + [r[0] for r in rs]); hi = max([0] + [r[1] for r in rs])
+                digits.append((g.node(units, f"mux{pp}"), lo, hi))
+            rq = N.requant(g, digits, shift=sm, amax=sp.amax, name="rq")
+    elif not sm:
         for p in range(P0):
             e = sum((Sab[(a, p - a)] * sgn(p - a) for a in range(AB) if 0 <= p - a < WB), Expr())
             lo, hi = rng(p); digits.append((e, lo, hi))

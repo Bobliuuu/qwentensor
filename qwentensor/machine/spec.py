@@ -19,6 +19,12 @@ from dataclasses import dataclass
 from functools import cached_property
 
 
+GROUP_F = 48     # fan*rows one adder-tree group may sum (the requantizer's carry staircase must fit its 256 gate window, docs/WIDE.md)
+
+
+def group_fan(rows): return max(1, GROUP_F // rows)
+
+
 @dataclass(frozen=True)
 class Spec:
     rows: int = 8                  # registers per tile (power of two, <= 128); last row = constant 1
@@ -28,12 +34,19 @@ class Spec:
     nops: int = 16                 # op slots (program length bound)
     fan: int = 1                   # max columns summed by one op
     smax: int = 0                  # max requant shift (0: shift fixed to 0, no mux)
+    tpg: int = 0                   # tiles per adder-tree group (0: one group = the legacy single tree); docs/WIDE.md
+    gfan: int = 0                  # max active columns of one op inside one group (0: = fan)
 
     # ---- derived ----
     @cached_property
     def tiles(self): return len(self.cols)
     @cached_property
     def ncols(self): return sum(self.cols)
+    @cached_property
+    def ngroups(self): return 1 if not self.tpg else -(-self.tiles // self.tpg)
+    @cached_property
+    def gf(self): return self.gfan or self.fan
+    def col_group(self, c): return 0 if not self.tpg else self.col_tile(c) // self.tpg
     @cached_property
     def nreg(self): return self.tiles * self.rows
     @cached_property
