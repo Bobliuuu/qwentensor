@@ -13,7 +13,7 @@ from dataclasses import dataclass, field
 import numpy as np
 
 from .asm import Op, Program
-from .spec import Spec, group_fan
+from .spec import Spec, group_fan, GROUP_F
 
 
 class DoesNotFit(Exception):
@@ -137,7 +137,7 @@ def compile_neurons(g, rows, neurons, in_regs, out_regs, nreg_used, spec_overrid
     smax_need = max([nu.shift for nu in neurons] + [0])
     # tile groups (docs/WIDE.md): a neuron wider than one adder tree sums its tiles in groups of `tpg` tiles
     if spec_override is not None: tpg, gfan = spec_override.tpg, spec_override.gfan
-    elif (wide if wide is not None else wide_needed(neurons, rows, br)): tpg = gfan = group_fan(rows)
+    elif (wide if wide is not None else (wide_needed(neurons, rows, br) or fan_need * rows > GROUP_F)): tpg = gfan = group_fan(rows)
     else: tpg = gfan = 0
     if tpg:
         for nu in neurons:

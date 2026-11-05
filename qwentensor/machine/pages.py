@@ -11,7 +11,7 @@ import numpy as np
 from ..ir import Graph, Node
 from .circuit import build
 from .sched import Compiled, DoesNotFit, Neuron, compile_neurons, wide_needed
-from .spec import Spec, group_fan
+from .spec import Spec, group_fan, GROUP_F
 
 
 class PageMismatch(AssertionError):
@@ -123,9 +123,10 @@ def _compile_page(g, rows, neurons, spec_override=None, wide=None):
 
 
 def fan_cap(g, rows, smax):
-    """Largest `fan` (columns summed by one op) for which the machine circuit builds at this row count, bit widths and max shift."""
+    """Largest `fan` (columns summed by ONE adder tree) that builds at this row count, bit widths and max shift AND stays exact: fan * rows is
+    capped at spec.GROUP_F (a bigger single tree can build but its shift mux produces bf16 values it cannot represent, docs/WIDE.md section 5)."""
     cap = 0
-    for f in range(1, 17):
+    for f in range(1, group_fan(rows) + 1):
         try: build(Spec(rows=rows, cols=(1,) * f, ab=g.ab, wb=g.wb, nops=1, fan=f, smax=smax))
         except (ValueError, AssertionError): break
         cap = f
@@ -148,8 +149,7 @@ def _pack(g, rows, per_node, max_cols, max_ops, fcap, smax_g, tile_caps=None, wi
                 comp, _ = _compile_page(g, rows, nus[i:i + 1], wide=wide)
                 if comp.spec.fan > fcap:
                     raise DoesNotFit(f"{nus[i]['name']}: the neuron reads up to {comp.spec.fan * (rows - g.bias_rows)} registers (fan {comp.spec.fan} at {rows} rows); the circuit "
-                                     f"builds fan <= {fcap} at smax {smax_g} (the requantizer's carry staircase must fit its 256 window: fan*rows <= 48 when shifts reach 5, "
-                                     f"<= 80 when smax <= 4)")
+                                     f"is exact up to fan {fcap} per adder tree at {rows} rows (fan*rows <= {GROUP_F}, docs/WIDE.md)")
                 raise DoesNotFit(f"{nus[i]['name']}: a single neuron needs columns {comp.spec.cols} (fan {comp.spec.fan}); max_cols={max_cols}, per-tile caps {tile_caps}")
             lo, hi = 1, min(max_ops, len(nus) - i)
             while lo < hi:
@@ -181,7 +181,12 @@ def compile_paged(g, rows=16, max_cols=60, max_ops=60):
     wide = wide_needed([Neuron(nu["name"], nu["wts"], nu["bias"], nu["shift"], 0) for _, nus in per_node for nu in nus], rows, g.bias_rows)
     # a neuron wider than one adder tree: tile groups (docs/WIDE.md); the number of columns one op may read is then bounded by the mask width only
     fcap = min(max_cols, 126) if wide else fan_cap(g, rows, smax_g)
-    pages = _pack(g, rows, per_node, max_cols, max_ops, fcap, smax_g, wide=wide)
+    try:
+        pages = _pack(g, rows, per_node, max_cols, max_ops, fcap, smax_g, wide=wide)
+    except DoesNotFit as e:
+        if wide or "reads up to" not in str(e): raise
+        wide = True; fcap = min(max_cols, 126)              # split weight columns pushed a neuron past one tree: use tile groups
+        pages = _pack(g, rows, per_node, max_cols, max_ops, fcap, smax_g, wide=wide)
     spec = _shared_spec(g, rows, pages, wide=wide)
     if spec.ncols > max_cols and spec.tiles > 1:
         caps = tuple(max(1, c * max_cols // spec.ncols) if c else 0 for c in spec.cols)
@@ -196,7 +201,7 @@ def compile_paged(g, rows=16, max_cols=60, max_ops=60):
     try: build(spec)
     except (ValueError, AssertionError) as e:
         raise DoesNotFit(f"a neuron reads up to {spec.fan * (rows - g.bias_rows)} registers (fan {spec.fan} at {rows} rows, smax {spec.smax}); the requantizer's "
-                         f"carry staircase must fit its 256 window (fan*rows <= 48 when shifts reach 5, <= 80 when smax <= 4): {str(e)[:120]}") from None
+                         f"carry staircase must fit its 256 window (docs/WIDE.md): {str(e)[:120]}") from None
     for p in pages:
         p.comp, p.src = _compile_page(g, rows, p.neurons, spec_override=spec, wide=wide)
         p.dst = [nu["key"] for nu in p.neurons]

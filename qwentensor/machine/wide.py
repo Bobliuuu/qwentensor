@@ -8,14 +8,21 @@ from qwentpu.compiler.nonlin import _stair_ok
 QMAX = 4
 
 
-def normalize(g, digits, name="norm"):
+def qmax_for(G, cap=256):
+    """Largest digit width q (<= QMAX) with G*(2^q - 1) <= cap: the combined digits are mux operands and must stay bf16-exact integers (<= 256)."""
+    q = 1
+    while q < QMAX and G * ((2 << q) - 1) <= cap: q += 1
+    return q
+
+
+def normalize(g, digits, name="norm", qmax=QMAX):
     """digits: [(Expr, lo, hi)] (y = sum 2^j digit_j).  Returns {position: (Expr, lo, hi)} with y = sum 2^pos Expr."""
     one = g.one; n = len(digits)
     dig = lambda j: digits[j] if j < n else (0 * one, 0, 0)
     c, clo, chi = 0 * one, 0, 0
     out = {}; j = 0; k = 0
     while j < n or (clo, chi) not in ((0, 0), (-1, 0), (-1, -1)):
-        for q in range(QMAX, 0, -1):
+        for q in range(qmax, 0, -1):
             parts = [dig(j + i) for i in range(q)]
             tlo = clo + sum(p[1] << i for i, p in enumerate(parts)); thi = chi + sum(p[2] << i for i, p in enumerate(parts))
             if _stair_ok(tlo, thi, 1 << q): break

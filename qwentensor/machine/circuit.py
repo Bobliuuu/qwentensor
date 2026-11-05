@@ -16,7 +16,7 @@ from qwentpu.compiler.gadgets import Circ
 from qwentpu.compiler.ir import A_BIT, A_REF, K, Expr
 
 from .spec import Spec
-from .wide import normalize
+from .wide import normalize, qmax_for
 
 S_CODE = 2 ** 12
 
@@ -121,9 +121,10 @@ def build(sp: Spec):
             for p in range(P0):
                 e = sum((Sg[gm][(a, p - a)] * sgn(p - a) for a in range(AB) if 0 <= p - a < WB), Expr())
                 lo, hi = rng(p); dg.append((e, lo, hi))
-            for pos, (e, lo, hi) in normalize(g, dg, f"norm{gm}").items():
+            for pos, (e, lo, hi) in normalize(g, dg, f"norm{gm}", qmax_for(G)).items():
                 x = comb.get(pos); comb[pos] = (e, lo, hi) if x is None else (x[0] + e, x[1] + lo, x[2] + hi)
         top = max(comb); D = [comb.get(j, (0 * one, 0, 0)) for j in range(top + 1)]
+        assert all(max(abs(d[1]), abs(d[2])) <= 256 for d in D), "combined group digits must stay bf16-exact integers (<= 256): too many groups"
         if not sm:
             rq = N.requant(g, D, shift=0, amax=sp.amax, name="rq")
         else:

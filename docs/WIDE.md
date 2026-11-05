@@ -8,7 +8,8 @@ and clamps. A neuron therefore reads at most `fan * (rows - 1)` registers. With 
 
     carry staircase for bit 4 spans [-64,452]: wider than the 256 gate window
 
-(`scripts/probe_fan.py`; with `smax <= 4`, `fan = 5` builds and `fan = 6` fails the same way at bit 3, span [0, 588]).
+(`scripts/probe_fan.py`; with `smax <= 4`, `fan = 5` builds and `fan = 6` fails the same way at bit 3, span [0, 588]). That a circuit BUILDS is not the
+same as it being exact, see section 5: the exact ceiling of one tree is lower than the build ceiling.
 
 Why: qwenTPU's gadgets compare an integer `z` with a threshold `theta` as `relu(z - theta + 1) - relu(z - theta)`. That pair is exact only if the
 positive side stays within bf16's exact-integer range, `hi - theta + 1 <= 256` (or the mirrored form `theta - lo <= 256`; `Circ.terms_ge`). So a
@@ -65,3 +66,21 @@ need 12, 784 need 18.
 * The columns per page: a 784-wide neuron needs 53 columns (one per touched tile), so a page holds few such neurons and the layer runs as many pages
   (host-driven paging, `docs/STREAMING.md`). The program memory mask value has 126 dims, so one machine has at most 126 columns.
 * In-model weight streaming, loops and branches are unchanged.
+
+## 5. A circuit that builds is not necessarily exact
+
+The build-time window test only certifies the carry staircases. The shift mux (one-hot shift times a bit-plane count) hands digits of up to `5 * F` to the
+requantizer as residual-stream values, and bf16 represents integers exactly only up to 256 (even integers above). Fork D (maximum-capacity probes,
+reported to this branch by the coordinator; its probes are in its own branch and were not rerun here) measured the single-tree path against the exact evaluator:
+
+| `fan * rows` | 64 | 68 | 72 | 80 |
+|---|---|---|---|---|
+| random programs exact | all | 14/16 | 13/16 | 12/16 |
+
+so the exact ceiling of ONE adder tree is `fan * rows = 64`, not 80 (the earlier statement "up to 80 when `smax <= 4`" in `docs/STREAMING.md` and `docs/DESIGN.md`
+described what builds). This branch therefore never runs a single tree above `GROUP_F = 48` (`spec.GROUP_F`): `sched.compile_neurons` routes any neuron with
+`fan * rows > 48` (including fans caused by split columns) to tile groups, and `pages.fan_cap` caps the single-tree path at that budget. 48 is below the measured
+64 on purpose: the per-group digits are at most `5 * 48 = 240` and every count is at most 48, both inside 256.
+
+The grouped path has its own bf16 bound: the combined digits `D_j = sum_g L_{g,j}` are mux operands, so `G * (2^q - 1) <= 256` must hold. `wide.qmax_for(G)` lowers
+the digit width `q` as `G` grows (q = 3 up to 18 groups, 2 up to 36, 1 up to 128) and `circuit.build` asserts the bound on every combined digit.

@@ -96,3 +96,16 @@ def test_group_overflow_is_reported():
                Node("fc", "matvec", ["d"], 2, W=np.full((len(idx), 2), 15, dtype=np.int64), b=np.zeros(2, dtype=np.int64), shift=6)],
               "fc", ab=5, wb=5, profile="v2.1")
     with pytest.raises(DoesNotFit, match="tile group"): compile_graph(g, rows=16)
+
+
+def test_single_tree_never_exceeds_the_exact_budget():
+    """A neuron of 45 inputs whose weights need split columns (fan 4 at 16 rows = 64 counts) must not run on one adder tree: the shift mux of such a tree
+    can produce bf16 values it cannot represent (docs/WIDE.md section 5).  It is routed to tile groups and, with 4 columns in one group, reported."""
+    import pytest
+    from qwentensor.ir import Graph, Node
+    from qwentensor.machine.sched import compile_graph, DoesNotFit
+    idx = list(range(45)) + list(range(15))
+    g = Graph([Node("x", "input", [], 45), Node("d", "gather", ["x"], len(idx), index=np.array(idx)),
+               Node("fc", "matvec", ["d"], 1, W=np.full((len(idx), 1), 15, dtype=np.int64), b=np.zeros(1, dtype=np.int64), shift=4)],
+              "fc", ab=5, wb=5, profile="v2.1")
+    with pytest.raises(DoesNotFit, match="tile group"): compile_graph(g, rows=16)
