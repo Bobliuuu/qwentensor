@@ -70,7 +70,7 @@ integers (`fan * rows <= 256`). Per lane the same window limits apply. The indep
 (`vec.reference_emit`) parses the prompt, applies each token's writes, and then computes the successor group.
 The CPU evaluator asserts every bf16 / silu / one-hot / equal-multi-hot condition at every position, including the new fused query positions.
 
-## 4. Predicted effect (digits MLP 15-15-10, 25 neurons)
+## 4. Predicted effect (digits MLP 15-15-10, 25 neurons) and what was measured
 
 | machine | emitted tokens | circuit |
 |---|---|---|
@@ -78,7 +78,19 @@ The CPU evaluator asserts every bf16 / silu / one-hot / equal-multi-hot conditio
 | fused, L = 1 | 25 | same size |
 | lanes, L = 2 | 13 | about 2x the columns, so more layers |
 
-Measured numbers are in README and `results/a100_vec*.log`.
+Measured on the real Qwen3.5-0.8B (A100, bf16, digits MLP, 20 inputs, all exact; logs `results/a100_vec_{exact,general,bench}.log`):
+
+| machine | chip layers | hidden | vocab | emitted | eager loop / end to end | CUDA-graph loop / end to end |
+|---|---|---|---|---|---|---|
+| scalar | 9 | 3072 | 17616 | 50 | 656 / 680 ms | 163 / 266 ms |
+| 1 lane | 9 | 2816 | 19744 | 25 | 331 / 355 ms | 101 / 205 ms |
+| 2 lanes | 17 | 5120 | 71840 | 13 | 322 / 367 ms | 146 / 340 ms |
+
+* **Exactness:** 20/20 digits x 2 readouts for 1 and 2 lanes; a 16-layer one-lane machine ran four programs 24/24.
+* **One lane** is a pure win: half the tokens, no extra layers. 2.0x eager, 1.6x in the graph loop, 1.3x per inference (prefill dominates the graph path).
+* **Two lanes** halve the tokens again, but the columns double (a neuron reads registers in both lane tiles, so it needs one column per tile), heads go from 53 to 121 and layers from 9 to 17. The cost per token roughly doubles, so the gain is lost:
+  a tie eagerly and slower with CUDA graphs. `block_align=True` (each node on a fresh block) gives 16 layers and 103 heads for two lanes; it was not run on the GPU.
+* **Not tried:** three or more lanes (vocabulary `nout^L` per group is 32768 ids per group at three lanes).
 
 ## 5. What is not changed
 

@@ -1,0 +1,16 @@
+Current Python version 3.10 is below the recommended 3.11 version. It is recommended to upgrade to Python 3.11 or higher for the best experience.
+[scalar] model 0.8B Spec(rows=16, cols=(15, 10, 0), ab=5, wb=5, nops=25, fan=1, smax=4)
+[scalar] chip layers 9 hidden 3072 vocab 17616 build 22s
+[transformers] `causal_conv1d_fn` is falling back to its reference PyTorch implementation because `causal_conv1d` is not installed. This is correct but much slower; install `causal_conv1d` for the optimized kernel.
+[transformers] `causal_conv1d_update` is falling back to its reference PyTorch implementation because `causal_conv1d` is not installed. This is correct but much slower; install `causal_conv1d` for the optimized kernel.
+[scalar:bench] eager chip path: exact 20/20; layers 9; prompt 434 tok, emitted 50 tok; prefill 23.9 ms; emitted-token loop 656.4 ms = 76.2 tok/s (13.13 ms/token); end-to-end 680.3 ms per inference (1.47 inferences/s)
+[scalar:bench] CUDA-graph chip path: exact 20/20; layers 9; prompt 434 tok, emitted 50 tok; prefill 103.1 ms; emitted-token loop 162.5 ms = 307.7 tok/s (3.25 ms/token); end-to-end 265.6 ms per inference (3.76 inferences/s)
+[vec1] model 0.8B VSpec(rows=16, lanes=1, cols=(13, 12, 0), ccls=(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0), ab=5, wb=5, fan=1, smax=4)
+[vec1] chip layers 9 hidden 2816 vocab 19744 build 13s
+[vec1:bench] eager chip path: exact 20/20; layers 9; prompt 409 tok, emitted 25 tok; prefill 24.3 ms; emitted-token loop 330.7 ms = 75.6 tok/s (13.23 ms/token); end-to-end 355.0 ms per inference (2.82 inferences/s)
+[vec1:bench] CUDA-graph chip path: exact 20/20; layers 9; prompt 409 tok, emitted 25 tok; prefill 104.8 ms; emitted-token loop 100.6 ms = 248.5 tok/s (4.02 ms/token); end-to-end 205.4 ms per inference (4.87 inferences/s)
+[vec2] model 0.8B VSpec(rows=16, lanes=2, cols=(25, 23, 8, 0), ccls=(0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 1, 0, 0, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 0), ab=5, wb=5, fan=3, smax=4)
+[vec2] chip layers 17 hidden 5120 vocab 71840 build 36s
+[vec2:bench] eager chip path: exact 20/20; layers 17; prompt 466 tok, emitted 13 tok; prefill 44.7 ms; emitted-token loop 322.4 ms = 40.3 tok/s (24.80 ms/token); end-to-end 367.2 ms per inference (2.72 inferences/s)
+[vec2:bench] CUDA-graph chip path: exact 20/20; layers 17; prompt 466 tok, emitted 13 tok; prefill 194.6 ms; emitted-token loop 145.6 ms = 89.3 tok/s (11.20 ms/token); end-to-end 340.2 ms per inference (2.94 inferences/s)
+TOTAL BAD 0

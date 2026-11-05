@@ -84,6 +84,20 @@ page's emitted tokens equal to the numpy token golden and every final output equ
 
 Log: [results/a100_stream.log](results/a100_stream.log). Between pages the activations live in the host, so the page sequence is host-driven; inside a page nothing is.
 
+Fifth, a **vectorized machine** ([docs/VECTORIZED.md](docs/VECTORIZED.md), `qt.compile(..., lanes=N)`, `scripts/gpu_vec.py`): the READ token is fused into the register write and one emitted token carries
+`lanes` neuron results, so the digits MLP emits 25 tokens (one lane) or 13 (two lanes) instead of 50. Same 0.8B, A100, digits MLP, 20 digits x 2 readouts = **40/40 exact** for each of one and two lanes
+([log](results/a100_vec_exact.log)); one compiled one-lane machine (16 chip layers, hidden 4608) ran four different programs, **24/24 exact** ([log](results/a100_vec_general.log)). The scalar path is unchanged and stays the default.
+Throughput, same protocol as above (20 inputs, all exact in both modes, [log](results/a100_vec_bench.log)):
+
+| machine | chip layers | emitted tokens | eager loop | eager end to end | CUDA-graph loop | CUDA-graph end to end |
+|---|---|---|---|---|---|---|
+| scalar (above) | 9 | 50 | 656 ms (76 tok/s) | 680 ms | 163 ms (308 tok/s) | 266 ms |
+| vectorized, 1 lane | 9 | 25 | 331 ms (76 tok/s) | 355 ms | 101 ms (249 tok/s) | 205 ms |
+| vectorized, 2 lanes | 17 | 13 | 322 ms (40 tok/s) | 367 ms | 146 ms (89 tok/s) | 340 ms |
+
+One lane halves the tokens at the same circuit size: 2.0x faster eager, 1.6x faster in the graph loop and 1.3x per inference (the graph path's 100 ms prefill is not reduced). Two lanes cut the tokens to 13 but need two columns per neuron (56 columns, 121 heads, 17 layers, vocab 71840), so
+a token costs 2x more; it ties one lane eagerly (322 ms) and is slower with CUDA graphs. One lane is the faster configuration for this network.
+
 ## 🔀 How it differs from qwenTPU
 
 | | what runs | who decides the computation |
@@ -228,7 +242,7 @@ The variants' float / int accuracy is from `reference.run` on all 540 digits; th
 
 ## 🔭 Where the model run is still open
 
-* `scripts/gpu_run.py digits`, `general`, `residual`, `throughput` and `stream` are done on 0.8B, and `digits` and `general` also on 2B and 4B (see Status). Still open on the real model: a machine larger than 45 columns, in-model weight streaming (the host carries activations between pages), the paged networks and throughput on 2B and 4B, and layers wider than about 45 inputs.
+* `scripts/gpu_run.py digits`, `general`, `residual`, `throughput` and `stream` and `scripts/gpu_vec.py exact`, `general` and `bench` are done on 0.8B, and `digits` and `general` also on 2B and 4B (see Status). Still open on the real model: a machine larger than 45 columns, in-model weight streaming (the host carries activations between pages), the paged networks and throughput on 2B and 4B, and layers wider than about 45 inputs.
 * Not covered by the IR and how it could be: [docs/DESIGN.md](docs/DESIGN.md) section 10.
 
 ## 🙏 Credits and license
