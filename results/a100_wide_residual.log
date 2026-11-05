@@ -1,0 +1,10 @@
+[wide] residual MLP 64-32-[32+res]-10: integer accuracy of reference.run on all 540 held-out digits = 0.9611
+Current Python version 3.10 is below the recommended 3.11 version. It is recommended to upgrade to Python 3.11 or higher for the best experience.
+[wide:residual] Spec(rows=16, cols=(11, 11, 10, 6, 5), ab=5, wb=5, nops=11, fan=5, smax=6, tpg=3, gfan=3)
+[wide:residual] 106 neurons in 14 pages [6, 6, 6, 6, 6, 2, 11, 11, 10, 10, 10, 11, 1, 10]; chip layers 19 hidden 4352 vocab 28956 build 41s
+[transformers] `causal_conv1d_fn` is falling back to its reference PyTorch implementation because `causal_conv1d` is not installed. This is correct but much slower; install `causal_conv1d` for the optimized kernel.
+[transformers] `causal_conv1d_update` is falling back to its reference PyTorch implementation because `causal_conv1d` is not installed. This is correct but much slower; install `causal_conv1d` for the optimized kernel.
+[wide:residual] readout code: 10/10 digits exact end to end (every page's emitted tokens == numpy token golden AND final outputs == reference.run); 140 pages run, 0 page mismatches; prompt 120..508 tok, 2120 tokens emitted; 65.3s
+[wide:residual] readout lm_head: 10/10 digits exact end to end (every page's emitted tokens == numpy token golden AND final outputs == reference.run); 140 pages run, 0 page mismatches; prompt 120..508 tok, 2120 tokens emitted; 64.9s
+[wide] argmax accuracy of the reference outputs on these 10 digits: 1.00
+TOTAL BAD 0

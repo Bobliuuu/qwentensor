@@ -1,5 +1,5 @@
 """Run the executor on the real merged Qwen3.5 (A100).  Host = generate(): argmax; append.  Everything else is in the model.
-usage: python scripts/gpu_run.py <phase>   phase: digits | general | residual | throughput | stream | wide
+usage: python scripts/gpu_run.py <phase>   phase: digits | general | residual | throughput | stream | wide | wide784
 env: QWEN_DIR = checkpoint dir (default 0.8B), QWENTPU_SRC = qwenTPU repo, TAG = label printed in the log"""
 import os, sys, time
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -167,4 +167,12 @@ elif phase == "wide":
         print(f"[wide] {title}: integer accuracy of reference.run on all {len(z['y'])} held-out digits = {(z['ref'].argmax(1) == z['y']).mean():.4f}", flush=True)
         run_stream(f"wide:{name}", g, z, n, readouts=("code", "lm_head"))
         print(f"[wide] argmax accuracy of the reference outputs on these {n} digits: {(z['ref'][:n].argmax(1) == z['y'][:n]).mean():.2f}", flush=True)
+elif phase == "wide784":
+    # a 784-wide first layer (53 tiles, 18 groups).  There is no 784-input dataset offline: a seeded random 784-8-4 network, the check is bit-exactness vs reference.run.
+    n = int(os.environ.get("N", 3)); rng = np.random.default_rng(784)
+    g = rand_graph(rng, [784, 8, 4], [6, 5])
+    for nd in g.matvecs(): nd.W = rng.integers(1, 4, nd.W.shape) * rng.choice([-1, 1], nd.W.shape)
+    xq = rng.integers(0, 32, (n, 784)); ref = np.stack([R.run(g, x[None])[0] for x in xq])
+    print(f"[wide784] seeded random 784-8-4 network, {n} random inputs; reference outputs {ref.tolist()}", flush=True)
+    run_stream("wide784", g, dict(xq=xq, ref=ref), n, readouts=("code", "lm_head"), max_cols=60, max_ops=8)
 print("TOTAL BAD", bad)

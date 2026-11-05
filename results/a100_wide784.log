@@ -1,0 +1,9 @@
+[wide784] seeded random 784-8-4 network, 3 random inputs; reference outputs [[2, 0, 0, 0], [1, 0, 3, 1], [0, 0, 2, 1]]
+Current Python version 3.10 is below the recommended 3.11 version. It is recommended to upgrade to Python 3.11 or higher for the best experience.
+[wide784] Spec(rows=16, cols=(4, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1), ab=5, wb=5, nops=4, fan=53, smax=6, tpg=3, gfan=3)
+[wide784] 12 neurons in 9 pages [1, 1, 1, 1, 1, 1, 1, 1, 4]; chip layers 40 hidden 9984 vocab 75588 build 222s
+[transformers] `causal_conv1d_fn` is falling back to its reference PyTorch implementation because `causal_conv1d` is not installed. This is correct but much slower; install `causal_conv1d` for the optimized kernel.
+[transformers] `causal_conv1d_update` is falling back to its reference PyTorch implementation because `causal_conv1d` is not installed. This is correct but much slower; install `causal_conv1d` for the optimized kernel.
+[wide784] readout code: 3/3 digits exact end to end (every page's emitted tokens == numpy token golden AND final outputs == reference.run); 27 pages run, 0 page mismatches; prompt 1109..1690 tok, 72 tokens emitted; 10.9s
+[wide784] readout lm_head: 3/3 digits exact end to end (every page's emitted tokens == numpy token golden AND final outputs == reference.run); 27 pages run, 0 page mismatches; prompt 1109..1690 tok, 72 tokens emitted; 10.8s
+TOTAL BAD 0

@@ -1,0 +1,10 @@
+[wide] CNN conv4 -> conv8 -> AvgPool -> Linear(128->10) (512-wide Linear): integer accuracy of reference.run on all 540 held-out digits = 0.9722
+Current Python version 3.10 is below the recommended 3.11 version. It is recommended to upgrade to Python 3.11 or higher for the best experience.
+[wide:cnn] Spec(rows=16, cols=(14, 8, 5, 4, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1), ab=5, wb=5, nops=22, fan=31, smax=6, tpg=3, gfan=3)
+[wide:cnn] 778 neurons in 110 pages [14, 14, 14, 14, 14, 14, 14, 14, 14, 14, 14, 14, 14, 14, 14, 22, 14, 10, 8, 8, 8, 8, 8, 8, 8, 9, 8, 6, 5, 5, 6, 5, 5, 6, 5, 5, 8, 8, 6, 5, 5, 6, 5, 5, 6, 5, 5, 8, 8, 6, 5, 5, 6, 5, 5, 6, 5, 5, 8, 8, 6, 5, 5, 6, 5, 5, 6, 5, 5, 8, 8, 6, 5, 5, 6, 5, 5, 6, 5, 5, 8, 8, 6, 5, 5, 6, 5, 5, 6, 5, 5, 8, 10, 8, 8, 8, 8, 8, 8, 5, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]; chip layers 33 hidden 8704 vocab 108334 build 251s
+[transformers] `causal_conv1d_fn` is falling back to its reference PyTorch implementation because `causal_conv1d` is not installed. This is correct but much slower; install `causal_conv1d` for the optimized kernel.
+[transformers] `causal_conv1d_update` is falling back to its reference PyTorch implementation because `causal_conv1d` is not installed. This is correct but much slower; install `causal_conv1d` for the optimized kernel.
+[wide:cnn] readout code: 6/6 digits exact end to end (every page's emitted tokens == numpy token golden AND final outputs == reference.run); 660 pages run, 0 page mismatches; prompt 744..1382 tok, 9336 tokens emitted; 535.8s
+[wide:cnn] readout lm_head: 6/6 digits exact end to end (every page's emitted tokens == numpy token golden AND final outputs == reference.run); 660 pages run, 0 page mismatches; prompt 744..1382 tok, 9336 tokens emitted; 536.7s
+[wide] argmax accuracy of the reference outputs on these 6 digits: 1.00
+TOTAL BAD 0

@@ -84,6 +84,19 @@ page's emitted tokens equal to the numpy token golden and every final output equ
 
 Log: [results/a100_stream.log](results/a100_stream.log). Between pages the activations live in the host, so the page sequence is host-driven; inside a page nothing is.
 
+Fifth, **wide neurons** ([docs/WIDE.md](docs/WIDE.md)): the three original examples whose neurons read 64, 96 and 512 registers, and a 784-wide first layer, run in pages with
+tile groups on the same real Qwen3.5-0.8B (A100, bf16). Every page's emitted tokens equal the numpy token golden and every final output equals `reference.run`:
+
+| network | neurons | pages | machine | prompt tokens per page | digits x readouts | exact | page runs |
+|---|---|---|---|---|---|---|---|
+| residual MLP 64-32-[32+res]-10 | 106 | 14 | 43 columns, 19 chip layers, hidden 4352, vocab 28956, 2 tile groups | 120-508 | 10 x 2 | 20/20 | 280 |
+| deep MLP 64-96-64-32-10 | 202 | 37 | 41 columns, 21 chip layers, hidden 4352, vocab 28402, 3 tile groups | 236-610 | 10 x 2 | 20/20 | 740 |
+| CNN conv4-conv8-AvgPool-Linear(128->10) (512-wide Linear) | 778 | 110 | 58 columns, 33 chip layers, hidden 8704, 11 tile groups | 744-1382 | 6 x 2 | 12/12 | 1320 |
+| seeded random 784-8-4 network (no 784-input dataset offline; checked only against `reference.run`) | 12 | 9 | 56 columns, 40 chip layers, hidden 9984, vocab 75588, 18 tile groups | 1109-1690 | 3 x 2 | 6/6 | 54 |
+
+Logs: [residual](results/a100_wide_residual.log), [deep](results/a100_wide_deep.log), [CNN](results/a100_wide_cnn.log), [784](results/a100_wide784.log). The digit
+runs use the first 10 (CNN: 6) held-out digits; the 784-wide network has random weights and random inputs, so it shows exactness, not accuracy.
+
 ## 🔀 How it differs from qwenTPU
 
 | | what runs | who decides the computation |
@@ -174,7 +187,7 @@ Authoritative table: [docs/IR.md](docs/IR.md) section 3.
 
 * **Size.** One machine holds at most 128 ops and 126 physical columns (heads grow about 2 per column); the largest machine run on the real model has 45 columns. A network with more neurons than that runs in pages (`paged=True`): weights are resident inside a page, pages are streamed through the prompt, and **the host carries the activations between pages**, so the page sequence is host-driven (in-model streaming is not built, see [docs/STREAMING.md](docs/STREAMING.md)). Every conv output position is a separate neuron set (`groups` duplicates the weights), so a conv layer costs P times the neurons.
 * **No loops, no data-dependent branches, no early exit.** Registers are single-assignment.
-* **A neuron reads at most about 45 inputs.** K tiling adds exact counts inside one adder tree (no digit tokens), and the circuit builds `fan * rows` up to 48 when shifts reach 5 (80 when `smax <= 4`). Wide layers do not fit even in pages: the 64-96-64-32-10 deep MLP, the 64-wide residual MLP, the CNN with AvgPool folded into a 512-wide Linear, and any 784-wide input layer. The streamed examples use 44 input pixels and strided convs.
+* **Wide neurons run in tile groups** ([docs/WIDE.md](docs/WIDE.md)): one adder tree is exact only up to 48 to 64 counts (a circuit can build beyond that and not be exact), so a neuron reading more than 45 registers sums its tiles in groups of 3 and adds the groups' normalised digits. A neuron needs one column per touched tile (a 784-wide neuron needs 53), so a machine of at most 126 columns holds few wide neurons and a wide layer runs as many pages. Weights beyond the 5-bit range add columns: more than 3 active columns in one tile group is a `DoesNotFit`.
 * **Unsigned interior activations**; final logits are relu-clamped to 0..31.
 
 ## 📊 Results (540 held-out sklearn digits, seeds fixed, `python examples/<name>.py`)
@@ -213,9 +226,9 @@ Held-out sklearn digits (540). Machine accuracy is only measured for the digits 
 | network | neurons | fits the machine | machine == `reference.run` | float / int / machine accuracy |
 |---|---|---|---|---|
 | digits MLP 15-15-10 (496-token prompt) | 25 | yes | **540/540 digits** (about 4.1 s/digit under load) | 0.9037 / 0.8944 / 0.8944 |
-| deep MLP 64-96-64-32-10 (the full network above) | 202 | no, `DoesNotFit` (also with `paged=True`: neurons read 64 and 96 inputs) | - | - |
-| residual MLP 64-32-[32+res]-10 | 106 (408 columns) | no, `DoesNotFit` (also paged: 64 inputs) | - | - |
-| CNN conv4-conv8-avgpool-fc | 778 | no, `DoesNotFit` (also paged: AvgPool folds into a 512-wide Linear) | - | - |
+| **paged, wide** deep MLP 64-96-64-32-10 (the full network above, `examples/run_wide.py deep`) | 202 | yes, 37 pages on a 41-column machine (neurons read 64 and 96 inputs, tile groups) | token golden 540/540; circuit simulator 1 digit | 0.9778 / 0.9759 / not measured |
+| **paged, wide** residual MLP 64-32-[32+res]-10 (`... residual`) | 106 (408 columns) | yes, 14 pages on a 43-column machine | token golden 540/540; circuit simulator 1 digit | 0.9741 / 0.9611 / not measured |
+| **paged, wide** CNN conv4-conv8-avgpool-fc (`... cnn`) | 778 | yes, 110 pages on a 58-column machine (AvgPool folds into a 512-wide Linear: 31 tiles, 11 groups) | token golden 540/540; circuit simulator 1 digit | 0.9741 / 0.9722 / not measured |
 | deep variant 15-24-16-10 | 50 | yes | first 3 digits only | 0.9056 / 0.9037 / not measured |
 | residual variant, width 10 on the 15 pooled features | 40 | yes | first 3 digits only | 0.8685 / 0.8426 / not measured |
 | CNN variant 4x4 input, conv3x3 1->2 ch + fc | 42 | yes | first 3 digits only | 0.9185 / 0.8722 / not measured |
@@ -228,7 +241,7 @@ The variants' float / int accuracy is from `reference.run` on all 540 digits; th
 
 ## 🔭 Where the model run is still open
 
-* `scripts/gpu_run.py digits`, `general`, `residual`, `throughput` and `stream` are done on 0.8B, and `digits` and `general` also on 2B and 4B (see Status). Still open on the real model: a machine larger than 45 columns, in-model weight streaming (the host carries activations between pages), the paged networks and throughput on 2B and 4B, and layers wider than about 45 inputs.
+* `scripts/gpu_run.py digits`, `general`, `residual`, `throughput`, `stream`, `wide` and `wide784` are done on 0.8B, and `digits` and `general` also on 2B and 4B (see Status). Still open on the real model: a machine larger than 58 columns, in-model weight streaming (the host carries activations between pages), and the paged networks and throughput on 2B and 4B.
 * Not covered by the IR and how it could be: [docs/DESIGN.md](docs/DESIGN.md) section 10.
 
 ## 🙏 Credits and license
