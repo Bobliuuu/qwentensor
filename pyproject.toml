@@ -5,13 +5,12 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "qwentensor"
 version = "0.1.0"
-description = "Run an arbitrary PyTorch network (quantized to integers) inside Qwen3.5 via the qwenTPU machinery"
+description = "Compile a small quantized PyTorch network to a prompt and run it inside Qwen3.5 via the qwenTPU machinery"
 requires-python = ">=3.10"
-dependencies = ["numpy", "torch>=2.1"]
+dependencies = ["numpy", "torch>=2.1", "qwentpu @ git+https://github.com/Bobliuuu/qwentpu.git"]
 
 [project.optional-dependencies]
 dev = ["pytest", "scikit-learn"]
-qwentpu = ["qwentpu @ git+https://github.com/Bobliuuu/qwentpu.git"]   # needed by qwentensor.machine
 
 [tool.setuptools.packages.find]
 include = ["qwentensor*"]

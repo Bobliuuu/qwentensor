@@ -1,9 +1,9 @@
 """Run the executor on the real merged Qwen3.5 (A100).  Host = generate(): argmax; append.  Everything else is in the model.
 usage: python scripts/gpu_run.py <phase>   phase: digits | general | residual | throughput | stream | wide | wide784
-env: QWEN_DIR = checkpoint dir (default 0.8B), QWENTPU_SRC = qwenTPU repo, TAG = label printed in the log"""
+env: QWEN_DIR = checkpoint dir (required), QWENTPU_SRC = qwenTPU repo, TAG = label printed in the log"""
 import os, sys, time
 HERE = os.path.dirname(os.path.abspath(__file__))
-sys.path[:0] = [os.path.join(HERE, ".."), os.environ.get("QWENTPU_SRC", os.path.join(HERE, "..", "..", "qwentpu_src"))]
+sys.path[:0] = [os.path.join(HERE, ".."), *[p for p in [os.environ.get("QWENTPU_SRC")] if p]]
 import numpy as np, torch
 from qwentpu.merge import build_merged, instantiate
 from qwentpu.driver import TpuSession
@@ -15,7 +15,7 @@ from qwentensor.machine.sched import compile_graph, DoesNotFit
 from qwentensor.machine.pages import compile_paged
 from qwentensor.machine.spec import Spec
 
-SRC = os.environ.get("QWEN_DIR", "/home/ubuntu/qwentpu_gpu/q08")
+SRC = os.environ.get("QWEN_DIR") or sys.exit("set QWEN_DIR to a Qwen3.5 checkpoint directory (and CUDA)")
 TAG = os.environ.get("TAG", os.path.basename(SRC.rstrip("/")))
 DATA = os.path.join(HERE, "..", "qwentensor", "machine", "data")
 bad = 0

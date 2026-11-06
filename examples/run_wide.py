@@ -7,7 +7,7 @@ Loads the quantized graph written by scripts/make_wide_data.py and checks the ma
   * the first n_circuit samples through the CPU circuit-IR simulator (every page, every exactness condition asserted)."""
 import sys, os, time
 HERE = os.path.dirname(os.path.abspath(__file__))
-sys.path[:0] = [os.path.join(HERE, ".."), os.environ.get("QWENTPU_SRC", os.path.expanduser("~/qwentpu_src/qwentpu"))]
+sys.path[:0] = [os.path.join(HERE, ".."), *[p for p in [os.environ.get("QWENTPU_SRC")] if p]]
 import numpy as np
 from qwentensor import reference as R
 from qwentensor.ir import Graph

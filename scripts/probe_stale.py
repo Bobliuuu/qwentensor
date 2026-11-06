@@ -3,7 +3,7 @@ Prompt = normal prompt with one extra CELL(row 0, col 0, new weight) inserted AF
 other half of in-model streaming: re-issuing ACT(r; 0) for a register overwrites its accumulator row (erase)."""
 import os, sys
 HERE = os.path.dirname(os.path.abspath(__file__))
-sys.path[:0] = [os.path.join(HERE, ".."), os.environ.get("QWENTPU_SRC", os.path.expanduser("~/qwentpu_src/qwentpu"))]
+sys.path[:0] = [os.path.join(HERE, ".."), *[p for p in [os.environ.get("QWENTPU_SRC")] if p]]
 import numpy as np
 from qwentensor.ir import Graph, Node
 from qwentensor.machine.run import IRMachine

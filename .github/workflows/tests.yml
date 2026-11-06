@@ -10,15 +10,15 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
-      - name: Install (CPU torch, qwenTPU from git)
+      - name: Install (CPU torch; qwenTPU installs from its public repository)
         run: |
           python -m pip install --upgrade pip
           pip install torch --index-url https://download.pytorch.org/whl/cpu
-          pip install -e ".[dev,qwentpu]"
+          pip install -e ".[dev]"
       - name: CPU tests only
         run: |
-          # exit code 5 = no tests collected yet; allowed until tests/ exists
-          pytest -q -m "not gpu" || [ $? -eq 5 ]
+          # no `|| true`: exit code 5 (no tests collected) fails the job
+          pytest -q
   site:
     runs-on: ubuntu-latest
     steps:

@@ -1,7 +1,7 @@
 """Probe which (rows, fan, bits, smax) machine circuits build (build only; no evaluation)."""
 import os, sys, time
 HERE = os.path.dirname(os.path.abspath(__file__))
-sys.path[:0] = [os.path.join(HERE, ".."), os.environ.get("QWENTPU_SRC", os.path.expanduser("~/qwentpu_src/qwentpu"))]
+sys.path[:0] = [os.path.join(HERE, ".."), *[p for p in [os.environ.get("QWENTPU_SRC")] if p]]
 from qwentensor.machine.spec import Spec
 from qwentensor.machine.circuit import build
 

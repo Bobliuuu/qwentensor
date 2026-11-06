@@ -9,7 +9,7 @@ All probes are CPU only (circuit build / arithmetic); GPU probes are in scripts/
 """
 import json, os, sys, time
 HERE = os.path.dirname(os.path.abspath(__file__))
-sys.path[:0] = [os.path.join(HERE, ".."), os.environ.get("QWENTPU_SRC", os.path.expanduser("~/qwentpu_src/qwentpu"))]
+sys.path[:0] = [os.path.join(HERE, ".."), *[p for p in [os.environ.get("QWENTPU_SRC")] if p]]
 
 from qwentensor.machine.spec import Spec
 from qwentensor.machine.circuit import build

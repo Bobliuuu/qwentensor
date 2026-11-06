@@ -14,7 +14,7 @@ Tokens per kind follow qwentensor/machine/spec.py: CELL (weights), PROG (PS_READ
 import json, os, sys
 HERE = os.path.dirname(os.path.abspath(__file__)); ROOT = os.path.abspath(os.path.join(HERE, ".."))
 DATA = os.path.join(HERE, "data")
-sys.path[:0] = [ROOT, os.path.join(ROOT, "examples"), os.environ.get("QWENTPU_SRC", os.path.expanduser("~/qwentpu_src/qwentpu"))]
+sys.path[:0] = [ROOT, os.path.join(ROOT, "examples"), *[p for p in [os.environ.get("QWENTPU_SRC")] if p]]
 import numpy as np, torch, torch.nn as nn, torch.fx
 from common import digits
 from qwentensor import reference as R

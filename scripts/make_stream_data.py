@@ -2,7 +2,7 @@
 labels, reference.run outputs) for scripts/gpu_run.py stream.  Needs sklearn + torch; run locally once."""
 import os, sys
 HERE = os.path.dirname(os.path.abspath(__file__))
-sys.path[:0] = [os.path.join(HERE, ".."), os.path.join(HERE, "..", "examples"), os.environ.get("QWENTPU_SRC", os.path.expanduser("~/qwentpu_src/qwentpu"))]
+sys.path[:0] = [os.path.join(HERE, ".."), os.path.join(HERE, "..", "examples"), *[p for p in [os.environ.get("QWENTPU_SRC")] if p]]
 import numpy as np
 import qwentensor as qt
 from qwentensor import reference as R

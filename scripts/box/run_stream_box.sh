@@ -2,7 +2,8 @@
 # Run the streamed-network GPU phase on the shared A100 (queues on ~/.gpu.lock; never kills other holders).
 # env: N (digits per network, default 10), NETS (comma list of residual,deep,cnn), LOG (log file, default stream.log)
 cd ~/qwentensor_stream || exit 1
-export QWENTPU_SRC=/home/ubuntu/qwentensor_run/qwentpu_src
+export QWEN_DIR=${QWEN_DIR:-$HOME/qwentpu_gpu/q08}
+export QWENTPU_SRC=$HOME/qwentensor_run/qwentpu_src
 export N=${N:-10}
 LOG=${LOG:-stream.log}
 echo "queued $(date -u +%FT%TZ)" > "$LOG"

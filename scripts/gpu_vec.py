@@ -3,7 +3,7 @@ usage: python scripts/gpu_vec.py exact|bench [variants]      variants: scalar ve
 env: QWEN_DIR = checkpoint dir, QWENTPU_SRC = qwenTPU repo, TAG = label printed in the log, N = number of digits (default 20)"""
 import os, sys, time
 HERE = os.path.dirname(os.path.abspath(__file__))
-sys.path[:0] = [os.path.join(HERE, ".."), os.environ.get("QWENTPU_SRC", os.path.join(HERE, "..", "..", "qwentpu_src"))]
+sys.path[:0] = [os.path.join(HERE, ".."), *[p for p in [os.environ.get("QWENTPU_SRC")] if p]]
 import numpy as np, torch
 from qwentpu.merge import build_merged, instantiate
 from qwentpu.driver import TpuSession
@@ -14,7 +14,7 @@ from qwentensor.machine.run import generate
 from qwentensor.machine.sched import compile_graph, DoesNotFit
 from qwentensor.machine.vec import VSpec, compile_vec, install_vec
 
-SRC = os.environ.get("QWEN_DIR", "/home/ubuntu/qwentpu_gpu/q08")
+SRC = os.environ.get("QWEN_DIR") or sys.exit("set QWEN_DIR to a Qwen3.5 checkpoint directory (and CUDA)")
 TAG = os.environ.get("TAG", os.path.basename(SRC.rstrip("/")))
 N = int(os.environ.get("N", 20))
 DATA = os.path.join(HERE, "..", "qwentensor", "machine", "data")
