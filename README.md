@@ -97,6 +97,20 @@ tile groups on the same real Qwen3.5-0.8B (A100, bf16). Every page's emitted tok
 Logs: [residual](results/a100_wide_residual.log), [deep](results/a100_wide_deep.log), [CNN](results/a100_wide_cnn.log), [784](results/a100_wide784.log). The digit
 runs use the first 10 (CNN: 6) held-out digits; the 784-wide network has random weights and random inputs, so it shows exactness, not accuracy.
 
+Sixth, a **vectorized machine** ([docs/VECTORIZED.md](docs/VECTORIZED.md), `qt.compile(..., lanes=N)`, `scripts/gpu_vec.py`): the READ token is fused into the register write and one emitted token carries
+`lanes` neuron results, so the digits MLP emits 25 tokens (one lane) or 13 (two lanes) instead of 50. Same 0.8B, A100, digits MLP, 20 digits x 2 readouts = **40/40 exact** for each of one and two lanes
+([log](results/a100_vec_exact.log)); one compiled one-lane machine (16 chip layers, hidden 4608) ran four different programs, **24/24 exact** ([log](results/a100_vec_general.log)). The scalar path is unchanged and stays the default.
+Throughput, same protocol as above (20 inputs, all exact in both modes, [log](results/a100_vec_bench.log)):
+
+| machine | chip layers | emitted tokens | eager loop | eager end to end | CUDA-graph loop | CUDA-graph end to end |
+|---|---|---|---|---|---|---|
+| scalar (above) | 9 | 50 | 656 ms (76 tok/s) | 680 ms | 163 ms (308 tok/s) | 266 ms |
+| vectorized, 1 lane | 9 | 25 | 331 ms (76 tok/s) | 355 ms | 101 ms (249 tok/s) | 205 ms |
+| vectorized, 2 lanes | 17 | 13 | 322 ms (40 tok/s) | 367 ms | 146 ms (89 tok/s) | 340 ms |
+
+One lane halves the tokens at the same circuit size: 2.0x faster eager, 1.6x faster in the graph loop and 1.3x per inference (the graph path's 100 ms prefill is not reduced). Two lanes cut the tokens to 13 but need two columns per neuron (56 columns, 121 heads, 17 layers, vocab 71840), so
+a token costs 2x more; it ties one lane eagerly (322 ms) and is slower with CUDA graphs. One lane is the faster configuration for this network.
+
 ## 🔀 How it differs from qwenTPU
 
 | | what runs | who decides the computation |
@@ -129,7 +143,7 @@ nn.Module --torch.fx--> float IR --quantize (PTQ, optional STE QAT)--> integer I
 | bit-exact numpy interpreter (the golden) | `qwentensor/reference.py` | done |
 | executor: program memory, tiling, shift requant, bias rows | `qwentensor/machine/`, `docs/EXECUTOR.md` | bit-exact on the CPU simulator and on the real Qwen3.5-0.8B (A100) for the digits MLP and three small programs (K-tiled MLP, 4-layer MLP, residual block) |
 | user API `qt.compile(...)` | `qwentensor/api.py` | done (`backend="sim"`); `backend="qwen"` needs a GPU (four programs were run on the real model via `scripts/gpu_run.py`) |
-| examples, tests | `examples/`, `tests/` | done (46 CPU tests, 45 pass) |
+| examples, tests | `examples/`, `tests/` | done (80 CPU tests) |
 
 Design write-up: [docs/DESIGN.md](docs/DESIGN.md). Project page: `docs/site/`.
 
@@ -185,9 +199,11 @@ Authoritative table: [docs/IR.md](docs/IR.md) section 3.
 
 ## ⚠️ Limits
 
-* **Size.** One machine holds at most 128 ops and 126 physical columns (heads grow about 2 per column); the largest machine run on the real model has 45 columns. A network with more neurons than that runs in pages (`paged=True`): weights are resident inside a page, pages are streamed through the prompt, and **the host carries the activations between pages**, so the page sequence is host-driven (in-model streaming is not built, see [docs/STREAMING.md](docs/STREAMING.md)). Every conv output position is a separate neuron set (`groups` duplicates the weights), so a conv layer costs P times the neurons.
+* **Size.** One machine holds at most 128 ops and 126 physical columns (heads grow about 2 per column); the full 126-column, 126-neuron machine ran 6/6 exact on the real 0.8B ([docs/LIMITS.md](docs/LIMITS.md)). A network with more neurons than that runs in pages (`paged=True`): weights are resident inside a page, pages are streamed through the prompt, and **the host carries the activations between pages**, so the page sequence is host-driven (in-model streaming is not built, see [docs/STREAMING.md](docs/STREAMING.md)). Every conv output position is a separate neuron set (`groups` duplicates the weights), so a conv layer costs P times the neurons.
 * **No loops, no data-dependent branches, no early exit.** Registers are single-assignment.
 * **Wide neurons run in tile groups** ([docs/WIDE.md](docs/WIDE.md)): one adder tree is exact only up to 48 to 64 counts (a circuit can build beyond that and not be exact), so a neuron reading more than 45 registers sums its tiles in groups of 3 and adds the groups' normalised digits. A neuron needs one column per touched tile (a 784-wide neuron needs 53), so a machine of at most 126 columns holds few wide neurons and a wide layer runs as many pages. Weights beyond the 5-bit range add columns: more than 3 active columns in one tile group is a `DoesNotFit`.
+* **The maximum, and why.** One machine: 126 neurons, 126 columns, 128 op slots (the 128-wide head state), on every Qwen3.5 size; a run can be 126 neurons deep. Memory sets the model: the full machine needs about 33 GB on 0.8B (measured), so 2B and 4B fit fewer columns on a 40 GB card. Whole networks are unbounded because pages chain. The exactness derivations, the probes that push each bound to failure, and what is impossible versus merely unbuilt are in [docs/LIMITS.md](docs/LIMITS.md).
+* **The vectorized machine and wide neurons are not combined:** each was verified alone on the real model.
 * **Unsigned interior activations**; final logits are relu-clamped to 0..31.
 
 ## 📊 Results (540 held-out sklearn digits, seeds fixed, `python examples/<name>.py`)
@@ -241,7 +257,7 @@ The variants' float / int accuracy is from `reference.run` on all 540 digits; th
 
 ## 🔭 Where the model run is still open
 
-* `scripts/gpu_run.py digits`, `general`, `residual`, `throughput`, `stream`, `wide` and `wide784` are done on 0.8B, and `digits` and `general` also on 2B and 4B (see Status). Still open on the real model: a machine larger than 58 columns, in-model weight streaming (the host carries activations between pages), and the paged networks and throughput on 2B and 4B.
+* `scripts/gpu_run.py digits`, `general`, `residual`, `throughput`, `stream`, `wide` and `wide784` and `scripts/gpu_vec.py exact`, `general` and `bench` are done on 0.8B, and `digits` and `general` also on 2B and 4B (see Status). Still open on the real model: a machine larger than 58 columns, in-model weight streaming (the host carries activations between pages), the paged and wide networks and throughput on 2B and 4B, and the vectorized machine with wide neurons.
 * Not covered by the IR and how it could be: [docs/DESIGN.md](docs/DESIGN.md) section 10.
 
 ## 🙏 Credits and license

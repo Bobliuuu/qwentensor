@@ -1,0 +1,10 @@
+Current Python version 3.10 is below the recommended 3.11 version. It is recommended to upgrade to Python 3.11 or higher for the best experience.
+[vec1:general] model 0.8B VSpec(rows=16, lanes=1, cols=(16, 16, 16), ccls=(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0), ab=5, wb=5, fan=3, smax=7)
+[vec1:general] chip layers 16 hidden 4608 vocab 37472 build 32s
+[transformers] `causal_conv1d_fn` is falling back to its reference PyTorch implementation because `causal_conv1d` is not installed. This is correct but much slower; install `causal_conv1d` for the optimized kernel.
+[transformers] `causal_conv1d_update` is falling back to its reference PyTorch implementation because `causal_conv1d` is not installed. This is correct but much slower; install `causal_conv1d` for the optimized kernel.
+[vec1:general] digits MLP 15-15-10: 6/6 exact; prompt 459 tok, emitted 25; 4.2s
+[vec1:general] random MLP 20-8-4 (K=20 spans tiles): 6/6 exact; prompt 282 tok, emitted 12; 1.8s
+[vec1:general] random 4-layer 8-5-5-5-4: 6/6 exact; prompt 259 tok, emitted 19; 2.8s
+[vec1:general] residual block (concat, identity rows): 6/6 exact; prompt 222 tok, emitted 14; 2.2s
+TOTAL BAD 0

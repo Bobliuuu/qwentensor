@@ -1,0 +1,14 @@
+Current Python version 3.10 is below the recommended 3.11 version. It is recommended to upgrade to Python 3.11 or higher for the best experience.
+[vec1] model 0.8B VSpec(rows=16, lanes=1, cols=(13, 12, 0), ccls=(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0), ab=5, wb=5, fan=1, smax=4)
+[vec1] chip layers 9 hidden 2816 vocab 19744 build 18s
+[transformers] `causal_conv1d_fn` is falling back to its reference PyTorch implementation because `causal_conv1d` is not installed. This is correct but much slower; install `causal_conv1d` for the optimized kernel.
+[transformers] `causal_conv1d_update` is falling back to its reference PyTorch implementation because `causal_conv1d` is not installed. This is correct but much slower; install `causal_conv1d` for the optimized kernel.
+[vec1] digits MLP 15-15-10, readout code: 20/20 exact (emitted tokens == numpy token golden AND outputs == reference.run); prompt 409 tok, emitted 25; 7.8s
+[vec1] digits MLP 15-15-10, readout lm_head: 20/20 exact (emitted tokens == numpy token golden AND outputs == reference.run); prompt 409 tok, emitted 25; 7.1s
+[vec1] argmax acc on these 20: 0.95
+[vec2] model 0.8B VSpec(rows=16, lanes=2, cols=(25, 23, 8, 0), ccls=(0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 1, 0, 0, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 0), ab=5, wb=5, fan=3, smax=4)
+[vec2] chip layers 17 hidden 5120 vocab 71840 build 37s
+[vec2] digits MLP 15-15-10, readout code: 20/20 exact (emitted tokens == numpy token golden AND outputs == reference.run); prompt 466 tok, emitted 13; 7.4s
+[vec2] digits MLP 15-15-10, readout lm_head: 20/20 exact (emitted tokens == numpy token golden AND outputs == reference.run); prompt 466 tok, emitted 13; 7.6s
+[vec2] argmax acc on these 20: 0.95
+TOTAL BAD 0
