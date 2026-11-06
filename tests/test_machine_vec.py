@@ -114,3 +114,24 @@ def test_api_lanes_option(lanes, tmp_path):
     assert f"{lanes} " in prog.explain() and prog.cost()["ops"] == -(-5 // lanes) + -(-3 // lanes)
     p = tmp_path / "p.json"; prog.save(p); again = qt.load(p)
     assert again.lanes == lanes and (again.run(X[:2]) == out).all()
+
+
+@pytest.mark.parametrize("lanes", [1, 2])
+def test_wide_neuron_raises_does_not_fit(lanes):
+    """The vectorized machine has no tile groups: a neuron wider than one exact adder tree (fan*rows > 48) must fail at compile time with
+    DoesNotFit, not later with a raw ValueError from the circuit builder."""
+    from qwentensor.machine.sched import DoesNotFit
+    rng = np.random.default_rng(11)
+    g = mk_graph(rng, [64, 8, 4], [1, 1], ab=5, wb=5)
+    with pytest.raises(DoesNotFit, match="tile groups"):
+        compile_vec(g, rows=16, lanes=lanes)
+
+
+def test_wide_neuron_through_the_api_is_qt_does_not_fit():
+    import qwentensor as qt
+    import torch
+    torch.manual_seed(0)
+    m = torch.nn.Sequential(torch.nn.Linear(64, 8), torch.nn.ReLU(), torch.nn.Linear(8, 4))
+    X = np.random.default_rng(0).random((64, 64)).astype(np.float32)
+    with pytest.raises(qt.DoesNotFit, match="tile groups"):
+        qt.compile(m, X, input_shape=(64,), backend="sim", lanes=1)

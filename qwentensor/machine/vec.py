@@ -26,6 +26,7 @@ from qwentpu.compiler.gadgets import Circ
 from qwentpu.compiler.ir import A_BIT, A_REF, K, Expr
 
 from .sched import DoesNotFit, _split
+from .spec import GROUP_F
 
 S_CODE = 2 ** 12
 
@@ -485,6 +486,10 @@ def compile_vec(g, rows=16, lanes=2, spec_override=None, fan=None, smax=None, bl
                 if bparts and t == btile and j == 0:
                     for i, bp in enumerate(bparts): W[(dr + i, (t, ci))] = bp
     fan_need = max([len(nu["cols"]) for nu in neurons] + [1]); smax_need = max([nu["shift"] for nu in neurons] + [0])
+    if fan_need * rows > GROUP_F:
+        raise DoesNotFit(f"the vectorized machine sums a neuron in one adder tree, which is exact only up to fan*rows <= {GROUP_F}; the widest neuron touches "
+                         f"{fan_need} column(s) of {rows} rows (fan*rows = {fan_need * rows}). Neurons that wide need the scalar machine's tile groups "
+                         f"(docs/WIDE.md): compile without lanes=, or paged=True, or narrow the layer.")
     if spec_override is None:
         sp = VSpec(rows=rows, lanes=L, cols=tuple(used), ccls=tuple(cls_of[(t, i)] for t in range(ntile) for i in range(used[t])),
                    ab=g.ab, wb=g.wb, fan=max(fan or 0, fan_need), smax=max(smax or 0, smax_need))
