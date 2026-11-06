@@ -1,0 +1,10 @@
+[wide] deep MLP 64-96-64-32-10: integer accuracy of reference.run on all 540 held-out digits = 0.9759
+Current Python version 3.10 is below the recommended 3.11 version. It is recommended to upgrade to Python 3.11 or higher for the best experience.
+[wide:deep] Spec(rows=16, cols=(7, 7, 7, 7, 6, 4, 3), ab=5, wb=5, nops=7, fan=7, smax=6, tpg=3, gfan=3)
+[wide:deep] 202 neurons in 37 pages [7, 7, 7, 7, 7, 7, 7, 7, 6, 6, 7, 7, 7, 7, 4, 4, 4, 4, 5, 4, 4, 4, 5, 4, 4, 4, 4, 4, 4, 2, 7, 7, 7, 7, 4, 7, 3]; chip layers 21 hidden 4352 vocab 28402 build 43s
+[transformers] `causal_conv1d_fn` is falling back to its reference PyTorch implementation because `causal_conv1d` is not installed. This is correct but much slower; install `causal_conv1d` for the optimized kernel.
+[transformers] `causal_conv1d_update` is falling back to its reference PyTorch implementation because `causal_conv1d` is not installed. This is correct but much slower; install `causal_conv1d` for the optimized kernel.
+[wide:deep] readout code: 10/10 digits exact end to end (every page's emitted tokens == numpy token golden AND final outputs == reference.run); 370 pages run, 0 page mismatches; prompt 236..610 tok, 4040 tokens emitted; 144.5s
+[wide:deep] readout lm_head: 10/10 digits exact end to end (every page's emitted tokens == numpy token golden AND final outputs == reference.run); 370 pages run, 0 page mismatches; prompt 236..610 tok, 4040 tokens emitted; 143.0s
+[wide] argmax accuracy of the reference outputs on these 10 digits: 1.00
+TOTAL BAD 0

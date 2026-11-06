@@ -137,9 +137,10 @@ Limits (honest list):
   result and an IR-level example, not a machine one.
 * **No loops, no data-dependent branches, no early exit.** Registers are single-assignment (a register's successor is a property of the register),
   so program length is bounded by the register count. Keying the successor on (register, value) would allow branches; not built.
-* **Wide first layers.** A neuron with more than `fan * (rows - 1)` inputs (784 pixels, for example) needs partial sums across time (an activation
-  RAM, or host-sequenced READs). Not built. The circuit builds `fan * rows` up to 48 when shifts reach 5 or more and up to 80 when `smax <= 4`
-  (`scripts/probe_fan.py`), so with trained shifts a neuron reads at most about 45 registers; the 64-input examples do not fit even in pages.
+* **Wide neurons** (more than 45 inputs) sum their tiles in groups of 3: each group's carry chain is normalised to tiny digits and the digits are added over the
+  groups ([docs/WIDE.md](WIDE.md)); neurons of 512 and 784 inputs run exactly in the simulator, and the 64-input examples and the AvgPool-folded CNN run in pages.
+  One adder tree is exact only up to `fan * rows` = 64 counts (a circuit can build beyond that but its shift mux produces bf16 values it cannot represent), so
+  groups use 48.
 * **Weight streaming is host-paged, not in-model.** Inside one run all weights are resident in state. A network with more neurons than one machine runs as
   pages (`qt.compile(..., paged=True)`, `docs/STREAMING.md`): the model runs each page from its own tokens and the host copies the integer activations
   between pages.

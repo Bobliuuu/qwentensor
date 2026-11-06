@@ -72,10 +72,9 @@ relu / clamp. The partial sum is exact int and un-clamped by construction. A til
 * limits: counts must stay bf16-exact in the mux (`fan*rows <= 256`), and the carry staircase window of `nonlin.requant` (256) must fit the
   digit ranges: `fan*rows` up to ~48 at u5s5 (rows=32, fan=2 raises `ValueError` from `requant`; rows=16, fan=3 builds). Weights outside
   [-16,15] (from gather duplicates) are split over extra columns of the same tile, using up fan.
-* what is NOT solved: a neuron needing more than `fan*(rows-1)` inputs (e.g. 784) would need digit-token partial sums across *time*: tile-1 activations
-  overwritten by tile-2 tokens before a second pass, which requires either an activation RAM (re-emitting ACT tokens from state) or
-  prompt-interleaved READs (host sequencing). Not built. Registers also bound the input width: all inputs and all activations are registers
-  (SSA), `nreg = tiles*rows`, and each tile costs heads.
+* wide neurons: one adder tree sums at most `fan*rows <= 48` counts (the carry staircase must fit its 256 window). A neuron with more inputs sums its
+  tiles in groups of `tpg` tiles, normalises each group's carry chain to tiny digits and adds the digits over the groups: `docs/WIDE.md` (neurons of 512 and 784
+  inputs, exact in the simulator). Registers still bound the input width: all inputs and all activations are registers (SSA), `nreg = tiles*rows`, and each tile costs heads.
 
 ## 4. Problem 3: ops
 
@@ -127,7 +126,6 @@ Model sizes: `digits` and `general` with `QWEN_DIR` set to the 2B and 4B checkpo
 `throughput` phase (0.8B, digits MLP, 20 inputs, host loop only, all exact): eager chip path 24 ms prefill + 657 ms for 50 emitted tokens (76 tok/s), 681 ms per inference; CUDA-graph chip path (`TpuSession(fast="graph")`, qwenTPU `GraphedChip`) 102 ms prefill + 163 ms (307 tok/s), 265 ms per inference. Log: `results/a100_throughput_q08.log`.
 
 ## 8. Remaining unsolved (summary)
-loops / data-dependent branches / early exit; neurons with more than `fan*(rows-1)` inputs (no activation RAM, no digit-token carry across
-time); in-model weight streaming (weights are resident inside a run; larger networks are paged by the host, `docs/STREAMING.md`); conv `groups` unrolled (P x columns); SSA register
+loops / data-dependent branches / early exit; in-model weight streaming (weights are resident inside a run; larger networks are paged by the host, `docs/STREAMING.md`); conv `groups` unrolled (P x columns); SSA register
 file (program length <= registers); signed activations / `act=linear` (outputs are relu-clamped); attention / softmax / norms (IR level);
 hardware size: heads ~ 2 per column (16 per layer), so ~100 neurons is the practical ceiling on this model.

@@ -94,10 +94,14 @@ def test_residual_mlp_beyond_one_machine():
     run_paged(pc, g, xq[:1], sim_executor(pc.spec))
 
 
-def test_wide_neurons_still_do_not_fit():
-    """64 inputs at shift 6 need fan 5: the requantizer's carry staircase does not fit its window (docs/STREAMING.md 3.2)."""
+def test_wide_neurons_run_in_tile_groups():
+    """64 inputs at shift 6 need 5 columns per neuron; one adder tree takes 3, so the tiles are summed in groups (docs/WIDE.md)."""
     rng = np.random.default_rng(4); g = mk_mlp(rng, [64, 12, 10], [6, 6], ab=5, wb=5)
-    with pytest.raises(DoesNotFit, match="fan"): compile_paged(g, rows=16, max_cols=60, max_ops=60)
+    pc = compile_paged(g, rows=16, max_cols=60, max_ops=60)
+    assert pc.spec.tpg == 3 and pc.spec.ngroups >= 2 and pc.spec.fan >= 5
+    xq = rng.integers(0, 32, (6, 64))
+    run_paged(pc, g, xq, golden_executor())
+    run_paged(pc, g, xq[:1], sim_executor(pc.spec))
 
 
 def test_single_neuron_over_the_column_budget():
