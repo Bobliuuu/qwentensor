@@ -1,0 +1,28 @@
+{"rows": 16, "fan": 16, "smax": 0, "ab": 5, "wb": 5, "F": 256, "builds": true, "trials": 8, "exact": 8, "first_failure": null}
+{"rows": 128, "fan": 2, "smax": 0, "ab": 5, "wb": 5, "F": 256, "builds": true, "trials": 8, "exact": 8, "first_failure": null}
+{"rows": 32, "fan": 8, "smax": 0, "ab": 5, "wb": 5, "F": 256, "builds": true, "trials": 8, "exact": 8, "first_failure": null}
+{"rows": 16, "fan": 17, "smax": 0, "ab": 5, "wb": 5, "F": 272, "builds": false, "error": "AssertionError: sum of fan*rows counts must stay bf16-exact (<= 256) for the shift mux"}
+{"rows": 128, "fan": 3, "smax": 0, "ab": 5, "wb": 5, "F": 384, "builds": false, "error": "AssertionError: sum of fan*rows counts must stay bf16-exact (<= 256) for the shift mux"}
+{"rows": 8, "fan": 8, "smax": 1, "ab": 5, "wb": 5, "F": 64, "builds": true, "trials": 16, "exact": 16, "first_failure": null}
+{"rows": 8, "fan": 9, "smax": 1, "ab": 5, "wb": 5, "F": 72, "builds": true, "trials": 16, "exact": 13, "first_failure": "mux4: bf16 output differs from exact: bad value np.float64(272.0) at 165"}
+{"rows": 16, "fan": 4, "smax": 1, "ab": 5, "wb": 5, "F": 64, "builds": true, "trials": 16, "exact": 16, "first_failure": null}
+{"rows": 16, "fan": 5, "smax": 1, "ab": 5, "wb": 5, "F": 80, "builds": true, "trials": 16, "exact": 12, "first_failure": "mux4: bf16 output differs from exact: bad value np.float64(284.0) at 185"}
+{"rows": 32, "fan": 2, "smax": 1, "ab": 5, "wb": 5, "F": 64, "builds": true, "trials": 16, "exact": 16, "first_failure": null}
+{"rows": 64, "fan": 1, "smax": 1, "ab": 5, "wb": 5, "F": 64, "builds": true, "trials": 16, "exact": 16, "first_failure": null}
+{"rows": 64, "fan": 2, "smax": 1, "ab": 5, "wb": 5, "F": 128, "builds": true, "trials": 16, "exact": 7, "first_failure": "mux4: bf16 output differs from exact: bad value np.float64(484.0) at 326"}
+{"rows": 16, "fan": 4, "smax": 2, "ab": 5, "wb": 5, "F": 64, "builds": true, "trials": 16, "exact": 16, "first_failure": null}
+{"rows": 16, "fan": 5, "smax": 2, "ab": 5, "wb": 5, "F": 80, "builds": true, "trials": 16, "exact": 12, "first_failure": "mux5: bf16 output differs from exact: bad value np.float64(284.0) at 185"}
+{"rows": 8, "fan": 8, "smax": 3, "ab": 5, "wb": 5, "F": 64, "builds": true, "trials": 16, "exact": 16, "first_failure": null}
+{"rows": 8, "fan": 9, "smax": 3, "ab": 5, "wb": 5, "F": 72, "builds": true, "trials": 16, "exact": 13, "first_failure": "mux6: bf16 output differs from exact: bad value np.float64(272.0) at 165"}
+{"rows": 16, "fan": 4, "smax": 3, "ab": 5, "wb": 5, "F": 64, "builds": true, "trials": 16, "exact": 16, "first_failure": null}
+{"rows": 16, "fan": 5, "smax": 3, "ab": 5, "wb": 5, "F": 80, "builds": true, "trials": 16, "exact": 12, "first_failure": "mux6: bf16 output differs from exact: bad value np.float64(284.0) at 185"}
+{"rows": 64, "fan": 1, "smax": 4, "ab": 5, "wb": 5, "F": 64, "builds": true, "trials": 16, "exact": 16, "first_failure": null}
+{"rows": 32, "fan": 2, "smax": 4, "ab": 5, "wb": 5, "F": 64, "builds": true, "trials": 16, "exact": 16, "first_failure": null}
+{"rows": 32, "fan": 3, "smax": 4, "ab": 5, "wb": 5, "F": 96, "builds": false, "error": "ValueError: carry staircase for bit 3 spans [0,588]: wider than the 256 gate window; split the accumulator (fewe"}
+{"rows": 8, "fan": 7, "smax": 5, "ab": 5, "wb": 5, "F": 56, "builds": true, "trials": 16, "exact": 16, "first_failure": null}
+{"rows": 8, "fan": 8, "smax": 5, "ab": 5, "wb": 5, "F": 64, "builds": false, "error": "ValueError: carry staircase for bit 4 spans [-64,452]: wider than the 256 gate window; split the accumulator (fe"}
+{"rows": 16, "fan": 3, "smax": 5, "ab": 5, "wb": 5, "F": 48, "builds": true, "trials": 16, "exact": 16, "first_failure": null}
+{"rows": 16, "fan": 4, "smax": 5, "ab": 5, "wb": 5, "F": 64, "builds": false, "error": "ValueError: carry staircase for bit 4 spans [-64,452]: wider than the 256 gate window; split the accumulator (fe"}
+{"rows": 8, "fan": 6, "smax": 7, "ab": 5, "wb": 5, "F": 48, "builds": true, "trials": 16, "exact": 16, "first_failure": null}
+{"rows": 8, "fan": 7, "smax": 7, "ab": 5, "wb": 5, "F": 56, "builds": false, "error": "ValueError: carry staircase for bit 6 spans [-98,434]: wider than the 256 gate window; split the accumulator (fe"}
+{"rows": 16, "fan": 3, "smax": 7, "ab": 5, "wb": 5, "F": 48, "builds": true, "trials": 16, "exact": 16, "first_failure": null}

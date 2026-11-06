@@ -1,0 +1,10 @@
+{"cols": 15, "nops": 15, "layers": 8, "dims": 1295, "nvocab": 9065, "heads": 33, "ffn_units": 905, "build_s": 0.0}
+{"cols": 30, "nops": 30, "layers": 9, "dims": 2213, "nvocab": 18020, "heads": 63, "ffn_units": 1284, "build_s": 0.0}
+{"cols": 45, "nops": 45, "layers": 11, "dims": 3128, "nvocab": 27425, "heads": 93, "ffn_units": 1659, "build_s": 0.4}
+{"cols": 60, "nops": 60, "layers": 13, "dims": 4046, "nvocab": 37280, "heads": 123, "ffn_units": 2038, "build_s": 0.5}
+{"cols": 90, "nops": 90, "layers": 17, "dims": 5876, "nvocab": 58340, "heads": 183, "ffn_units": 2788, "build_s": 0.4}
+{"cols": 100, "nops": 100, "layers": 18, "dims": 6489, "nvocab": 65760, "heads": 203, "ffn_units": 3042, "build_s": 0.6}
+{"cols": 126, "nops": 126, "layers": 21, "dims": 8365, "nvocab": 85988, "heads": 256, "ffn_units": 3692, "build_s": 0.2}
+{"cols": 126, "nops": 128, "layers": 21, "dims": 8371, "nvocab": 86320, "heads": 256, "ffn_units": 3692, "build_s": 0.6}
+cols=127 nops=128: BUILD FAILS: AssertionError: 
+cols=126 nops=129: BUILD FAILS: AssertionError: 

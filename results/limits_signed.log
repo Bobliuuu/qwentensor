@@ -1,0 +1,2 @@
+{"pairs": 1024, "reference_equals_clip(a-b,-16,15)+16": true}
+{"circuit_sample": 6, "circuit_exact": 6}

@@ -1,0 +1,15 @@
+{"rows": 8, "smax": 0, "builds": true, "error": null, "layers": 19, "dims": 8189, "nvocab": 50696, "hidden_0_8B": 9472, "bf16_GB_0_8B": 28.5, "weights_per_machine": 882}
+{"rows": 8, "smax": 4, "builds": true, "error": null, "layers": 20, "dims": 8339, "nvocab": 51326, "hidden_0_8B": 9472, "bf16_GB_0_8B": 28.9, "weights_per_machine": 882}
+{"rows": 8, "smax": 5, "builds": true, "error": null, "layers": 20, "dims": 8343, "nvocab": 51452, "hidden_0_8B": 9472, "bf16_GB_0_8B": 28.9, "weights_per_machine": 882}
+{"rows": 16, "smax": 0, "builds": true, "error": null, "layers": 20, "dims": 8211, "nvocab": 85232, "hidden_0_8B": 9472, "bf16_GB_0_8B": 30.2, "weights_per_machine": 1890}
+{"rows": 16, "smax": 4, "builds": true, "error": null, "layers": 21, "dims": 8362, "nvocab": 85862, "hidden_0_8B": 9472, "bf16_GB_0_8B": 30.6, "weights_per_machine": 1890}
+{"rows": 16, "smax": 5, "builds": true, "error": null, "layers": 21, "dims": 8365, "nvocab": 85988, "hidden_0_8B": 9472, "bf16_GB_0_8B": 30.6, "weights_per_machine": 1890}
+{"rows": 32, "smax": 0, "builds": true, "error": null, "layers": 22, "dims": 8250, "nvocab": 154304, "hidden_0_8B": 9472, "bf16_GB_0_8B": 33.6, "weights_per_machine": 3906}
+{"rows": 32, "smax": 4, "builds": true, "error": null, "layers": 25, "dims": 8403, "nvocab": 154934, "hidden_0_8B": 9472, "bf16_GB_0_8B": 34.8, "weights_per_machine": 3906}
+{"rows": 32, "smax": 5, "builds": true, "error": null, "layers": 25, "dims": 8407, "nvocab": 155060, "hidden_0_8B": 9472, "bf16_GB_0_8B": 34.8, "weights_per_machine": 3906}
+{"rows": 64, "smax": 0, "builds": true, "error": null, "layers": 25, "dims": 8322, "nvocab": 292448, "hidden_0_8B": 9472, "bf16_GB_0_8B": 40.0, "weights_per_machine": 7938}
+{"rows": 64, "smax": 4, "builds": true, "error": null, "layers": 31, "dims": 8479, "nvocab": 293078, "hidden_0_8B": 9728, "bf16_GB_0_8B": 43.6, "weights_per_machine": 7938}
+{"rows": 64, "smax": 5, "builds": false, "error": "ValueError: carry staircase for bit 4 spans [-64,452]: wider than the 256 gate window; split the accumulator (fewer rows per read) or use a smaller per-digit range"}
+{"rows": 128, "smax": 0, "builds": true, "error": null, "layers": 31, "dims": 8461, "nvocab": 568736, "hidden_0_8B": 9728, "bf16_GB_0_8B": 54.3, "weights_per_machine": 16002}
+{"rows": 128, "smax": 4, "builds": false, "error": "ValueError: carry staircase for bit 2 spans [0,544]: wider than the 256 gate window; split the accumulator (fewer rows per read) or use a smaller per-digit range"}
+{"rows": 128, "smax": 5, "builds": false, "error": "ValueError: carry staircase for bit 2 spans [0,544]: wider than the 256 gate window; split the accumulator (fewer rows per read) or use a smaller per-digit range"}

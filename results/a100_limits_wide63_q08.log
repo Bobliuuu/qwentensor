@@ -1,0 +1,6 @@
+[wide63] Spec(rows=64, cols=(63, 20, 0), ab=5, wb=5, nops=83, fan=1, smax=4)
+[wide63] neurons 83 ops 83 columns 83 tiles 3 fan 1 smax 4 weights placed 4335; (shift, fraction of outputs > 0) per layer [(4, 0.45), (3, 0.34)]
+[wide63] model 0.8B: chip layers 26 hidden 7424 vocab 215694 build 270s; GPU memory after build 29.3 GB
+[wide63] 6/6 exact (emitted tokens == numpy token golden AND outputs == reference.run); prompt 4860 tok, emitted 166 tok; peak GPU memory 29.8 GB; 40s
+[wide63] last-layer outputs of the first input: [ 0  0  0  0  0 31  0 19]...; reference nonzero outputs 8/20
+TOTAL BAD 0

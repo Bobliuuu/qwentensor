@@ -1,0 +1,8 @@
+{"rows": 64, "fan": 1, "smax": 2, "ab": 5, "wb": 5, "F": 64, "builds": true, "trials": 16, "exact": 16, "first_failure": null}
+{"rows": 64, "fan": 1, "smax": 3, "ab": 5, "wb": 5, "F": 64, "builds": true, "trials": 16, "exact": 16, "first_failure": null}
+{"rows": 32, "fan": 2, "smax": 2, "ab": 5, "wb": 5, "F": 64, "builds": true, "trials": 16, "exact": 16, "first_failure": null}
+{"rows": 32, "fan": 2, "smax": 3, "ab": 5, "wb": 5, "F": 64, "builds": true, "trials": 16, "exact": 16, "first_failure": null}
+{"rows": 8, "fan": 7, "smax": 6, "ab": 5, "wb": 5, "F": 56, "builds": true, "trials": 16, "exact": 16, "first_failure": null}
+{"rows": 16, "fan": 4, "smax": 1, "ab": 5, "wb": 5, "F": 64, "builds": true, "trials": 16, "exact": 16, "first_failure": null}
+{"rows": 64, "fan": 1, "smax": 0, "ab": 5, "wb": 5, "F": 64, "builds": true, "trials": 8, "exact": 8, "first_failure": null}
+{"rows": 128, "fan": 1, "smax": 0, "ab": 5, "wb": 5, "F": 128, "builds": true, "trials": 8, "exact": 8, "first_failure": null}
