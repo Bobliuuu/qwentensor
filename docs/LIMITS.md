@@ -1,6 +1,6 @@
 # Limits: how big can qwentensor get, and why
 
-Numbers are for `main` at `ad2bc28` (the circuit before the wide-layer and vectorisation work), Qwen3.5 text towers with the qwenTPU splice, bf16.
+Measured on `main` at `ad2bc28`, the circuit before the wide-layer and vectorisation work, which are now merged: the inputs-per-neuron figures below are for ONE adder tree and are superseded for wide neurons by tile groups (section 8). Qwen3.5 text towers with the qwenTPU splice, bf16.
 Every row says how it was established:
 
 * **[real]** ran on the real merged Qwen3.5 on the A100 (log in `results/`).
@@ -19,16 +19,17 @@ One machine, one run, on the real Qwen3.5-0.8B, with **every column and every op
 |---|---|---|
 | neurons per machine | **126** | 126 physical columns; 128 op slots |
 | depth inside one run | **126** sequential neurons | a chain of 126 one-input neurons [real], see section 4 |
-| inputs per neuron | **63** at any shift 1..4, **49** at shift 5..6, **45** at shift >= 7; **254** with no shift | section 3 [sim] |
+| inputs per neuron, one adder tree | **63** at any shift 1..4, **49** at shift 5..6, **45** at shift >= 7; **254** with no shift (the tree is capped at `fan * rows <= 48` in the code, `spec.GROUP_F`) | section 3 [sim] |
+| inputs per neuron, tile groups | `G x 45` at rows 16 (`G` groups of 3 tiles, [WIDE.md](WIDE.md)); ran on the real 0.8B with 64, 96, 512 and 784 inputs (`results/a100_wide*.log`); the upper bound from tiles, mask heads and the 126-column mask is **not re-measured** | section 8 [real] |
 | weights per machine | ran: **4,335** placed (rows 64, 83 columns x 63 inputs) and 3,208 (rows 32, 124 columns) [real]. Ceiling `126 x (rows - 1)`: 3,906 at rows 32, 7,938 at rows 64 (needs about 44 GB), 16,002 at rows 128 (shift 0 only, about 54 GB) | section 4 [real]; the ceilings are [derived] from `results/limits_rows.log` |
 | activation / weight bits | activations <= **9** bits, weights >= 16 bits arithmetic; **5 / 5 is the widest at which 126 columns fit one A100-40GB** (6 / 6 needs about 46 GB) | section 5 |
-| network size | **unbounded**, by running pages on one machine (host copies the integer activations); each neuron still has <= 63 inputs (254 at shift 0) | section 6 |
+| network size | **unbounded**, by running pages on one machine (host copies the integer activations); each neuron has at most `G x 45` inputs with tile groups (single tree: 63, or 254 at shift 0) | section 6 |
 
 Two different walls set these:
 
 1. **The 128-wide head.** Every Qwen3.5 size has `linear_key_head_dim = linear_value_head_dim = 128`. A program-memory head stores one 128-wide word per
    op slot (the key is the slot, one-hot, so at most 128 slots) and the word carries a 2-column reference ballast plus one bit per physical column, so at most
-   126 columns. That is why one machine has **126 neurons and 128 op slots on every model size**, 0.8B to 27B.
+   126 columns. That is why one machine has **126 neurons and 128 op slots on every model size**: [derived] from the HF configs for 2B to 27B, [real] on 0.8B only (the 2B and 4B models were run at 35 columns, not 126).
 2. **bf16's 8-bit significand.** The datapath is bf16 and integers are exact only up to 256 (`bf16(257) = 256`). Every bit-plane count, every digit of the
    accumulator and every threshold of the requantiser must be an integer <= 256. That caps the accumulator of one neuron (a sum of `fan * rows` products) and,
    with the shift, how many inputs it can have.
@@ -210,22 +211,24 @@ workaround that costs more heads or more bits. What is checked and what is argue
 | more than 126 columns / 128 ops per machine | unbuilt | more mask / shift heads (section 2.1) |
 | unbounded working memory in one run | **impossible** here | every chip layer is Gated DeltaNet: the working memory is the fixed-size head state, and registers are limited by vocabulary. Random access to earlier tokens needs full attention, which the chip layers do not use. Larger state means pages and the host. |
 
-## 8. What the concurrent forks can move
+## 8. What the merged work moved
 
-All numbers above are for `main` at `ad2bc28`. Two changes landed or are in flight after that commit; this document did not re-measure them.
+Everything above was measured on `main` at `ad2bc28`. Two changes were merged afterwards:
 
-* **Wide layers** (branch `feat/wide-layers`, tile groups). Reported by the coordinator: neurons wider than 48 inputs are now exact, and the original
-  64-wide networks run in pages on the real model. That moves the **inputs per neuron** rows (sections 1 and 3.2) and the `DoesNotFit` wide-layer limit of
-  `docs/STREAMING.md`; the exact new ceiling has to be re-measured with `probe_limits.py stress`. It does not move section 2.1 (126 columns, 128 ops,
-  heads) or section 5 (memory per model). The "80 when smax <= 4" build bound was never exact (section 3.2); a branch that relies on it should be stress-tested.
-* **Vectorisation** (fork B) emits several neurons per token: it moves the emitted-token count and time, and trades against the vocabulary
-  (`nout^k` token ids) and the code bits; it does not change the 126-column wall unless it also splits the mask head.
-* Both should re-run `tests/test_limits.py`: it fails on purpose when a bound moves.
+* **Wide layers** (`docs/WIDE.md`, tile groups). Neurons reading more than 48 counts of one adder tree are split into groups of 3 tiles whose carry chains are normalised
+  before the groups are added. The code never runs a single tree above `fan * rows = 48` (`spec.GROUP_F`), which sits below the measured exact ceiling of 64 in section 3.2.
+  On the real 0.8B the 64-wide residual MLP, the 64-96-64-32-10 deep MLP, the CNN's 512-wide Linear and a 784-wide first layer ran exact in pages
+  (`results/a100_wide_residual.log`, `a100_wide_deep.log`, `a100_wide_cnn.log`, `a100_wide784.log`). This replaces the inputs-per-neuron rows of sections 1 and 3.2 for
+  wide neurons. It does not move section 2.1 (126 columns, 128 ops, heads) or section 5 (memory per model). The new ceiling of the grouped path (`G` bounded by the tiles,
+  the `fan` mask heads and the 126-column mask value) was not probed to failure.
+* **Vectorisation** (`docs/VECTORIZED.md`) emits several neurons per token: it moves the emitted-token count and time, and trades against the vocabulary
+  (`nout^k` token ids) and the code bits; it does not change the 126-column wall. It is not combined with tile groups: `qt.compile(..., lanes=N)` raises `DoesNotFit` for a neuron wider than one adder tree.
+* `tests/test_limits.py` is part of the suite and passes on the merged `main`; it fails on purpose if a bound moves.
 
 ## 9. Reproduce
 
 ```
 python scripts/probe_limits.py size | fan | bits | rows | bf16 | config | bitmem | extremes | stress rows,fan,smax[,ab,wb]... | maxpool | signed
-bash scripts/_limits_batch2.sh       # A100 box: wide63 and rows32 of section 4 (wide126 and deep126: `python scripts/probe_limits_gpu.py wide126 | deep126`)
+bash scripts/box/_limits_batch2.sh       # A100 box: wide63 and rows32 of section 4 (wide126 and deep126: `python scripts/probe_limits_gpu.py wide126 | deep126`)
 pytest tests/test_limits.py
 ```

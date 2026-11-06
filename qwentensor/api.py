@@ -41,7 +41,7 @@ def _fit_error(g, e):
     tips = ("To fit: shrink hidden widths, use fewer layers, make convs smaller (every output position of a conv is a separate "
             "neuron: 8x8 image, 3x3 conv, 4 channels = 256 neurons; use stride/pooling first or a Linear on a downsampled input), "
             "or widths so each neuron touches fewer register tiles (every tile a neuron reads costs one column). A network with more neurons than one machine "
-            "can run in pages: qt.compile(..., paged=True) (docs/STREAMING.md); a neuron that reads more than about 45 registers still does not fit.")
+            "can run in pages: qt.compile(..., paged=True) (docs/STREAMING.md); a neuron that reads more than 48 counts of one adder tree is split into tile groups automatically (docs/WIDE.md).")
     return DoesNotFit(need + " " + tips)
 
 

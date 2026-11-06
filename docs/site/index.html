@@ -13,8 +13,8 @@
 
 <header class="hero"><div class="wrap">
   <h1>Write a PyTorch network.<br><em>Run it inside Qwen3.5.</em></h1>
-  <p class="lede">qwentensor quantizes a small PyTorch module to an integer graph and compiles it to a prompt that Qwen3.5 executes, one generated token per neuron. It builds on qwenTPU's in-weights integer machine. It is bit-exact against a numpy reference on a CPU simulator of the circuit, and four programs (the digits MLP, a two-tile MLP, a 4-layer MLP, a residual block) have run bit-exact on Qwen3.5-0.8B on an A100. Larger networks have not run on the real model.</p>
-  <div class="btns"><a class="btn primary" href="#how">How it works</a><a class="btn" href="#results">Results</a><a class="btn" href="../DESIGN.md">Design</a><a class="btn" href="https://github.com/Bobliuuu/qwentensor">GitHub</a></div>
+  <p class="lede">qwentensor quantizes a small PyTorch module to an integer graph and compiles it to a prompt that Qwen3.5 executes, one generated token per neuron. It builds on qwenTPU's in-weights integer machine. It is bit-exact against a numpy reference on a CPU simulator of the circuit, and twelve networks have run bit-exact on Qwen3.5-0.8B on an A100, from small MLPs to a 778-neuron CNN and a 784-wide first layer. Networks larger than one machine run in pages, with the host copying activations between pages.</p>
+  <div class="btns"><a class="btn primary" href="#how">How it works</a><a class="btn" href="#results">Results</a><a class="btn" href="https://github.com/Bobliuuu/qwentensor/blob/main/docs/DESIGN.md">Design</a><a class="btn" href="https://github.com/Bobliuuu/qwentensor">GitHub</a></div>
   <div class="stats" id="stats"></div>
   <p><img src="../anim/hero.gif" alt="a PyTorch network compiled to a prompt that Qwen3.5 executes" style="max-width:100%;border-radius:8px"></p>
 </div></header>
@@ -47,25 +47,25 @@ y = prog.run(Xte)        # decoded from the emitted tokens; asserted equal to th
 
 <section id="ops"><div class="wrap">
   <h2>Supported ops</h2>
-  <p class="sub">The authoritative list is in <a href="../IR.md">docs/IR.md</a>. Unsupported ops raise an error at compile time that names the op.</p>
+  <p class="sub">The authoritative list is in <a href="https://github.com/Bobliuuu/qwentensor/blob/main/docs/IR.md">docs/IR.md</a>. Unsupported ops raise an error at compile time that names the op.</p>
   <div class="filter" id="opfilter"></div>
   <div class="scroll"><table class="t" id="opstable"></table></div>
 </div></section>
 
 <section id="results"><div class="wrap">
   <h2>Results</h2>
-  <p class="sub">Held-out sklearn digits (540), fixed seeds. "Reference" is the bit-exact numpy interpreter of the integer graph. "pending" means not measured yet; in particular only small programs have been run on the real Qwen3.5 (see the Machine columns).</p>
+  <p class="sub">Held-out sklearn digits (540), fixed seeds. "Reference" is the bit-exact numpy interpreter of the integer graph. "pending" means not measured yet. The Real Qwen3.5 column gives exact counts from the logs in <code>results/</code>; paged and wide networks were run on the first 10 held-out digits (CNN: 6), so they show exactness, not accuracy on all 540.</p>
   <div class="scroll"><table class="t" id="results-table"></table></div>
 </div></section>
 
 <section id="limits"><div class="wrap">
   <h2>Limits</h2>
   <ul class="plain">
-    <li>Only small programs have run on the real Qwen3.5 (0.8B, A100): 64 of 64 runs exact (digits MLP 40, plus 24 across a two-tile MLP, a 4-layer MLP and a residual block). The deep MLP and the CNN do not fit and are quantizer results only.</li>
+    <li>On the real Qwen3.5-0.8B (A100) every run so far was exact: the digits MLP (40/40), a two-tile MLP, a 4-layer MLP and a residual block (24/24), a residual MLP (40/40), three paged networks of 70, 142 and 426 neurons, the original residual, deep and CNN networks in pages (106, 202 and 778 neurons, with 64-, 96- and 512-wide layers) and a 784-wide first layer. The digits MLP and the four-program model also ran on 2B and 4B. Paged and wide networks were not run on 2B or 4B.</li>
     <li>The machine is integer (5-bit activations and weights). The network is quantized first, and quantization changes its outputs; the table shows by how much.</li>
-    <li>Size: about 100 neurons is the practical ceiling on the 0.8B model. Every convolution output position is its own set of neurons.</li>
-    <li>No loops, no data-dependent branches. A neuron can read at most <code>fan * (rows - 1)</code> inputs, so a 784-wide first layer does not fit.</li>
-    <li>Only the ops in the table above run. Anything else fails at compile time. Speed is not competitive with running the network directly: one generated token per neuron.</li>
+    <li>Size: one machine holds at most 126 neurons (126 columns, 128 op slots); a full 126-column machine ran exact on 0.8B. A larger network runs in pages and <b>the host copies the activations between pages</b>, so the page sequence is host-driven. Every convolution output position is its own set of neurons.</li>
+    <li>No loops, no data-dependent branches. A neuron wider than one adder tree (48 counts) is split into tile groups; the vectorized machine (several neurons per token) does not support that and raises an error for such a neuron.</li>
+    <li>Only the ops in the table above run. Anything else fails at compile time. Speed is not competitive with running the network directly: one generated token per neuron (about 2x fewer with the one-lane vectorized machine).</li>
   </ul>
 </div></section>
 
@@ -73,7 +73,7 @@ y = prog.run(Xte)        # decoded from the emitted tokens; asserted equal to th
   <h2>Links</h2>
   <ul class="plain">
     <li><a href="https://github.com/Bobliuuu/qwentensor">qwentensor on GitHub</a></li>
-    <li><a href="../DESIGN.md">docs/DESIGN.md</a> (write-up), <a href="../IR.md">docs/IR.md</a> (integer graph) and <a href="../EXECUTOR.md">docs/EXECUTOR.md</a> (executor)</li>
+    <li><a href="https://github.com/Bobliuuu/qwentensor/blob/main/docs/DESIGN.md">docs/DESIGN.md</a> (write-up), <a href="https://github.com/Bobliuuu/qwentensor/blob/main/docs/IR.md">docs/IR.md</a> (integer graph) and <a href="https://github.com/Bobliuuu/qwentensor/blob/main/docs/EXECUTOR.md">docs/EXECUTOR.md</a> (executor), <a href="https://github.com/Bobliuuu/qwentensor/blob/main/docs/LIMITS.md">docs/LIMITS.md</a> (the maximum, and why), <a href="https://github.com/Bobliuuu/qwentensor/blob/main/docs/WIDE.md">docs/WIDE.md</a> (wide neurons) and <a href="https://github.com/Bobliuuu/qwentensor/blob/main/docs/STREAMING.md">docs/STREAMING.md</a> (pages)</li>
     <li><a href="https://bobliuuu.github.io/qwentpu/">qwenTPU</a>, <a href="https://github.com/Bobliuuu/qwentpu">source</a></li>
     <li><a href="https://github.com/divagr18/qwenputer">Qwenputer</a> and <a href="https://github.com/divagr18/QwenPU">QwenPU</a>, which established running a machine inside Qwen3.5</li>
   </ul>

@@ -18,7 +18,7 @@ The program, including the schedule, is written in the prompt; the host only run
 ```python
 import qwentensor as qt
 net = qt.compile(model, calib_data, input_shape=(64,), backend="qwen")   # nn.Module in
-print(net.predict(x))                                                    # tokens out, bit-exact vs numpy golden
+print(net.predict(x))                                                    # class indices; the underlying outputs are bit-exact vs the numpy golden
 ```
 
 ✨ **At a glance**
@@ -33,7 +33,7 @@ print(net.predict(x))                                                    # token
 🎬 <a href="docs/qwentensor_demo.mp4"><b>Watch the 1:42 demo video</b></a> (hero, program memory, shift requantize)</p>
 
 **📍 Status.** The frontend, quantizer and bit-exact numpy golden are done. The executor reproduces the golden bit-for-bit on a **CPU simulator of the circuit**
-(qwenTPU's float64 circuit-IR evaluator). On the real model, **five programs have been run**. First, the quantized digits MLP 15-15-10 (u5s5, shifts 2 and 4) on
+(qwenTPU's float64 circuit-IR evaluator). On the real model, programs from small MLPs to a 778-neuron CNN have been run exact (below). First, the quantized digits MLP 15-15-10 (u5s5, shifts 2 and 4) on
 Qwen3.5-0.8B (A100, bf16): 20 held-out digits x 2 readouts (code bits and lm_head) = 40/40 exact, emitted tokens equal to the numpy token golden and outputs equal
 to `reference.run` (prompt 434 tokens, 50 emitted, 9 chip layers, hidden 3072, vocab 17616; 95% argmax accuracy on those 20 digits). The host did only `argmax; append`.
 Log: [results/a100_digits.log](results/a100_digits.log).
@@ -50,7 +50,7 @@ Second, **one compiled 14-layer model** (Spec rows=16, cols=(15,12,8), fan 2, sm
 Log: [results/a100_general.log](results/a100_general.log).
 Third, a **residual MLP 15-10-[10+res]-10** (the `examples/run_residual.py` network: concat plus identity rows, 40 ops over 4 tiles, 16 chip layers, hidden 4608, vocab 37184) on the same
 0.8B: 20 digits x 2 readouts = 40/40 exact, prompt 685 tokens, 80 emitted, 90% argmax accuracy on those 20 digits
-([results/a100_residual_q08.log](results/a100_residual_q08.log)). The frontend's 64-32-[32+res]-10 residual MLP does not fit (`DoesNotFit`), and neither do the deep MLP and the CNN below.
+([results/a100_residual_q08.log](results/a100_residual_q08.log)). The frontend's 64-32-[32+res]-10 residual MLP, the deep MLP and the CNN do not fit one machine; they run in pages and are in the sections below.
 
 **Bigger models.** The same two programs ran bit-exact on Qwen3.5-2B and 4B (A100, bf16); only the hidden size changes with the model:
 
@@ -141,18 +141,17 @@ nn.Module --torch.fx--> float IR --quantize (PTQ, optional STE QAT)--> integer I
 | torch.fx frontend | `qwentensor/frontend.py` | done |
 | post-training quantizer + STE fine-tuning | `qwentensor/quant.py` | done |
 | bit-exact numpy interpreter (the golden) | `qwentensor/reference.py` | done |
-| executor: program memory, tiling, shift requant, bias rows | `qwentensor/machine/`, `docs/EXECUTOR.md` | bit-exact on the CPU simulator and on the real Qwen3.5-0.8B (A100) for the digits MLP and three small programs (K-tiled MLP, 4-layer MLP, residual block) |
-| user API `qt.compile(...)` | `qwentensor/api.py` | done (`backend="sim"`); `backend="qwen"` needs a GPU (four programs were run on the real model via `scripts/gpu_run.py`) |
-| examples, tests | `examples/`, `tests/` | done (80 CPU tests) |
+| executor: program memory, tiling, shift requant, bias rows | `qwentensor/machine/`, `docs/EXECUTOR.md` | bit-exact on the CPU simulator and on the real Qwen3.5-0.8B (A100): the digits MLP, small programs (K-tiled MLP, 4-layer MLP, residual blocks), and, in pages, the deep MLP, residual MLP and CNN including their 64-, 96- and 512-wide layers |
+| user API `qt.compile(...)` | `qwentensor/api.py` | done (`backend="sim"`); `backend="qwen"` needs a GPU (digits, general, residual, stream, wide and wide784 phases ran on the real model via `scripts/gpu_run.py`; the vectorized machine via `scripts/gpu_vec.py`) |
+| examples, tests | `examples/`, `tests/` | done (83 CPU tests) |
 
 Design write-up: [docs/DESIGN.md](docs/DESIGN.md). Project page: `docs/site/`.
 
 ## 🚀 Quickstart
 
 ```bash
-pip install -e ".[dev]"                 # torch, numpy, pytest, scikit-learn
-pip install -e ~/qwentpu_src/qwentpu    # needed by qwentensor.machine (the executor / simulator)
-OMP_NUM_THREADS=1 python -m pytest -q tests   # 46 tests, about 1 min
+pip install -e ".[dev]"                 # torch, numpy, qwenTPU (from GitHub), pytest, scikit-learn
+OMP_NUM_THREADS=1 python -m pytest -q tests   # 83 tests, about 3 min
 python examples/digits_mlp.py           # float vs int accuracy (also deep_mlp.py, cnn.py, residual_mlp.py)
 python examples/run_digits_mlp.py 20    # qt.compile + run 20 digits on the circuit simulator, assert machine == reference
                                         # (also run_deep_mlp.py, run_residual.py, run_cnn.py: smaller variants that fit the machine)
@@ -202,8 +201,8 @@ Authoritative table: [docs/IR.md](docs/IR.md) section 3.
 * **Size.** One machine holds at most 128 ops and 126 physical columns (heads grow about 2 per column); the full 126-column, 126-neuron machine ran 6/6 exact on the real 0.8B ([docs/LIMITS.md](docs/LIMITS.md)). A network with more neurons than that runs in pages (`paged=True`): weights are resident inside a page, pages are streamed through the prompt, and **the host carries the activations between pages**, so the page sequence is host-driven (in-model streaming is not built, see [docs/STREAMING.md](docs/STREAMING.md)). Every conv output position is a separate neuron set (`groups` duplicates the weights), so a conv layer costs P times the neurons.
 * **No loops, no data-dependent branches, no early exit.** Registers are single-assignment.
 * **Wide neurons run in tile groups** ([docs/WIDE.md](docs/WIDE.md)): one adder tree is exact only up to 48 to 64 counts (a circuit can build beyond that and not be exact), so a neuron reading more than 45 registers sums its tiles in groups of 3 and adds the groups' normalised digits. A neuron needs one column per touched tile (a 784-wide neuron needs 53), so a machine of at most 126 columns holds few wide neurons and a wide layer runs as many pages. Weights beyond the 5-bit range add columns: more than 3 active columns in one tile group is a `DoesNotFit`.
-* **The maximum, and why.** One machine: 126 neurons, 126 columns, 128 op slots (the 128-wide head state), on every Qwen3.5 size; a run can be 126 neurons deep. Memory sets the model: the full machine needs about 33 GB on 0.8B (measured), so 2B and 4B fit fewer columns on a 40 GB card. Whole networks are unbounded because pages chain. The exactness derivations, the probes that push each bound to failure, and what is impossible versus merely unbuilt are in [docs/LIMITS.md](docs/LIMITS.md).
-* **The vectorized machine and wide neurons are not combined:** each was verified alone on the real model.
+* **The maximum, and why.** One machine: 126 neurons, 126 columns, 128 op slots (the 128-wide head state). The same bound is derived from the HF configs for every Qwen3.5 size and was run only on 0.8B (6/6 exact); a run can be 126 neurons deep (also run on 0.8B). Memory sets the model: the full machine needs about 33 GB on 0.8B (measured); the 2B and 4B estimates (41 and 66 GB) were not run, and they fit fewer columns on a 40 GB card. Whole networks are unbounded because pages chain. The exactness derivations, the probes that push each bound to failure, and what is impossible versus merely unbuilt are in [docs/LIMITS.md](docs/LIMITS.md).
+* **The vectorized machine and wide neurons are not combined:** each was verified alone on the real model, and `lanes=` raises `qt.DoesNotFit` for a neuron wider than one adder tree (`fan * rows` above 48).
 * **Unsigned interior activations**; final logits are relu-clamped to 0..31.
 
 ## 📊 Results (540 held-out sklearn digits, seeds fixed, `python examples/<name>.py`)
@@ -218,9 +217,7 @@ samples taken from the training split; "+QAT" = STE fine-tuning of the integer w
 | CNN conv4-conv8-avgpool-fc (8x8) | 97.4% | 14.3% / 14.3% (QAT fails) | 87.6% / 97.2% | 96.5% / 97.0% | 299 |
 | residual MLP 64-32-[32+res]-10 | 97.4% | 49.4% / 83.7% | 96.1% / 96.1% | 96.9% / 96.9% | 33 |
 
-Executor status per row: only the digits MLP has been compiled and run through the machine with its real quantized weights (tests, shifts 2 and 4: output equal to
-`reference.run` in the circuit simulator, and exact on the real Qwen3.5-0.8B on an A100, in both the 9-layer and the 14-layer machine). The other three are quantizer results; the deep MLP (202 neurons) and the CNN (every conv position is a neuron set) exceed the
-~100 neuron ceiling, and the frontend's residual MLP 64-32-[32+res]-10 has not been run through the executor. A smaller residual MLP (15-10-[10+res]-10) and a residual block (concat plus identity rows) did run on the real model, but those are different, smaller programs. The other three rows have not run on the real model.
+Executor status per row. The digits MLP was compiled with its real quantized weights and run through the machine (tests, shifts 2 and 4: output equal to `reference.run` in the circuit simulator, and exact on the real Qwen3.5-0.8B on an A100, in both the 9-layer and the 14-layer machine). The deep MLP, the CNN and the frontend's residual MLP exceed one machine and run in pages with tile groups for their wide layers (Status, "wide neurons"): on the real 0.8B the residual MLP ran 20/20 exact (10 digits x 2 readouts, 280 page runs), the deep MLP 20/20 (740 page runs) and the CNN 12/12 (6 digits x 2 readouts, 1320 page runs), each page's tokens equal to the numpy token golden and each final output equal to `reference.run` ([wide_residual](results/a100_wide_residual.log), [wide_deep](results/a100_wide_deep.log), [wide_cnn](results/a100_wide_cnn.log)). Those runs used the first 10 held-out digits (CNN: 6), so they show exactness, not accuracy on all 540; the machine accuracy for these three rows was not measured.
 
 Honest reading of the losses:
 

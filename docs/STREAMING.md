@@ -76,7 +76,7 @@ recompiled against it. The circuit is built once as a feasibility check. `DoesNo
 
 ## 4. Verification
 
-**CPU circuit-IR simulator** (`pytest tests/test_machine_stream.py`, 11 tests; the whole suite is 57 passed): random MLPs, a skip connection that survives several
+**CPU circuit-IR simulator** (`pytest tests/test_machine_stream.py`, 11 tests; the suite has grown since; see the README for the current count): random MLPs, a skip connection that survives several
 pages, `gather` + `groups`, a strided CNN, a 142-neuron deep MLP (`DoesNotFit` on one machine) and a 70-neuron residual MLP: the circuit
 and the token golden agree page by page and the result equals `reference.run`. `examples/run_stream.py` on the trained networks: the token golden equals
 `reference.run` on all 540 held-out digits for all three networks; the circuit simulator equals it on 3 digits (deep), 1 digit (residual), 1 digit (CNN).
@@ -94,4 +94,4 @@ fresh prompt with `generate()` (argmax; append until HALT), and copies the integ
 1060 page runs in total, 0 mismatches. Wall times are on an A100 shared with other jobs. The integer accuracy of the three networks on all 540 held-out digits is 0.9704
 (residual), 0.9648 (deep) and 0.9574 (CNN) (float 0.9722, 0.9722, 0.9685); the real model was run on the first 10 digits of the held-out split.
 
-What the real-model runs do not show: a machine larger than 45 columns, any neuron reading more than 45 inputs, in-model weight streaming.
+What the `stream` real-model runs do not show: a machine larger than 45 columns and in-model weight streaming. Neurons reading more than 45 inputs ran on the real model in the `wide` phases ([WIDE.md](WIDE.md), `results/a100_wide*.log`).

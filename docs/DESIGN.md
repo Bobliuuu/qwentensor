@@ -5,8 +5,8 @@ This is the readable version of the design. The precise contracts are in [IR.md]
 
 **Status in one paragraph.** The frontend, quantizer and the numpy golden (`reference.run`) are done and tested. The executor is verified on a CPU
 simulator of the circuit (qwenTPU's float64 circuit-IR evaluator, with every bf16 / silu exactness condition asserted): its output is bit-exact
-against `reference.run`. On the real model, one network has run: the quantized digits MLP 15-15-10 on Qwen3.5-0.8B (A100, bf16), 20 held-out digits x 2 readouts,
-40/40 exact against the numpy token golden and `reference.run` (`results/a100_digits.log`). Then one 14-layer machine (rows=16, cols=(15,12,8), fan 2, smax 7, 40 ops, vocab 26616) ran four different programs (digits MLP, a K=20 two-tile MLP, a 4-layer MLP, a residual block), 24/24 exact, only the prompt differing (`results/a100_general.log`). The deep MLP, the CNN and the frontend's residual MLP have not run on the real model.
+against `reference.run`. On the real model the first network to run was the quantized digits MLP 15-15-10 on Qwen3.5-0.8B (A100, bf16), 20 held-out digits x 2 readouts,
+40/40 exact against the numpy token golden and `reference.run` (`results/a100_digits.log`). Then one 14-layer machine (rows=16, cols=(15,12,8), fan 2, smax 7, 40 ops, vocab 26616) ran four different programs (digits MLP, a K=20 two-tile MLP, a 4-layer MLP, a residual block), 24/24 exact, only the prompt differing (`results/a100_general.log`). The deep MLP, the CNN and the frontend's residual MLP later ran exact in pages, with tile groups for their 64-, 96- and 512-wide layers (`results/a100_wide_*.log`), and a 126-column machine ran exact (`docs/LIMITS.md`).
 
 ## 1. The problem
 
@@ -20,7 +20,7 @@ what the machine computes:
 | qwentensor | any network the supported-op list covers, written as a PyTorch `nn.Module` | the prompt: successor, destination register, column mask and shift of every op are tokens |
 
 The question qwentensor answers is: can the thing you give the machine be an ordinary PyTorch network, with the schedule living in the prompt, and
-the host doing nothing but `argmax; append`? For small networks, within the limits in section 9, yes, on the simulator; on the real model it has been shown for the digits MLP only.
+the host doing nothing but `argmax; append`? For small networks, within the limits in section 9, yes, on the simulator and on the real model (networks up to 778 neurons, run in pages; inside a page the host does only `argmax; append`, between pages it copies the activations).
 
 ## 2. The pipeline
 
@@ -106,7 +106,7 @@ written only by that tile's `ACT` tokens, so the same 16 key rows serve every ti
 Cost: wider digits in the tree, so more chip layers (rows=16, fan 1: 7 layers; fan 2: 10; with shifts up to 4: 13). Limits: counts must stay
 bf16-exact (`fan * rows <= 256`) and the carry staircase window of the requant gadget must hold the digit ranges (`fan * rows` up to about 48 at
 5-bit; rows=16, fan=3 builds, rows=32, fan=2 does not). A neuron that needs more than `fan * (rows - 1)` inputs, for example a 784-wide first layer,
-is **not solved**; see section 9.
+is solved by tile groups, see [WIDE.md](WIDE.md) and the wide-neurons limit below.
 
 Convolutions: `groups = P` duplicates the weight columns per output position, so a conv layer costs `P` times the neurons.
 
@@ -132,9 +132,9 @@ rewrites above, one-hot embeddings of integer inputs, all expressed in the promp
 
 Limits (honest list):
 
-* **Size.** Heads grow about 2 per column, 16 key heads per layer; about 100 neurons is the practical ceiling on the 0.8B model. At most 128 ops
-  and 126 physical columns (`qt.DoesNotFit` explains which). The 64-96-64-32-10 deep MLP in `examples/` has 202 neurons, so it is a quantizer
-  result and an IR-level example, not a machine one.
+* **Size.** Heads grow about 2 per column, 16 key heads per layer; one machine holds at most 126 neurons (126 physical columns, 128 op slots; `qt.DoesNotFit` explains which), and a full 126-column,
+  126-neuron machine ran 6/6 exact on the real 0.8B ([LIMITS.md](LIMITS.md)). The 64-96-64-32-10 deep MLP in `examples/` has 202 neurons, so it runs in
+  pages (`paged=True`), as do the residual MLP and the CNN.
 * **No loops, no data-dependent branches, no early exit.** Registers are single-assignment (a register's successor is a property of the register),
   so program length is bounded by the register count. Keying the successor on (register, value) would allow branches; not built.
 * **Wide neurons** (more than 45 inputs) sum their tiles in groups of 3: each group's carry chain is normalised to tiny digits and the digits are added over the
@@ -148,7 +148,7 @@ Limits (honest list):
   to `0..31`, so ties are possible; `act="linear"` (signed logits) is not machine-native.
 * **Accuracy.** 5-bit weights and activations, per-tensor scales. See the README table for the loss per network.
 * **Speed.** One generated token per neuron; this is a demonstration of in-weights computation, not an accelerator.
-* **Real model.** Only small programs have run there: the 9-layer digits machine and a 14-layer, 40-op general machine. Anything near the ~100 neuron ceiling has not.
+* **Real model.** Run exact on the 0.8B: the 9-layer digits machine, a 14-layer, 40-op general machine, a 126-column machine, paged networks of 70 to 778 neurons, and the 64-, 96- and 512-wide layers (results/a100_*.log); the digits and general programs also on 2B and 4B. Not run: paged or wide networks on 2B and 4B, and the vectorized machine combined with wide neurons.
 
 ## 10. What is not covered, and how it could be
 
@@ -169,6 +169,6 @@ Each item is a design sketch, not code. The common tool is that activations have
 
 ## 11. Verification status
 
-* 46 CPU tests (`OMP_NUM_THREADS=1 pytest -q tests`, about 1 min; all pass. `test_quantized_close_to_float` checks the quantizer, not the machine: on seeded random inputs and random-weight nets the residual MLP correlates about 0.97 with float (bar 0.95) and the CNN about 0.89 (bar 0.85); the trained nets in `examples/` are scored by accuracy instead). The tests include: program memory, tiling, ops at 3-bit and 5-bit extremes, scheduler (concat, gather, groups,
+* 83 CPU tests (`OMP_NUM_THREADS=1 pytest -q tests`, about 3 min; all pass. `test_quantized_close_to_float` checks the quantizer, not the machine: on seeded random inputs and random-weight nets the residual MLP correlates about 0.97 with float (bar 0.95) and the CNN about 0.89 (bar 0.85); the trained nets in `examples/` are scored by accuracy instead). The tests include: program memory, tiling, ops at 3-bit and 5-bit extremes, scheduler (concat, gather, groups,
   `bias_rows = 2`), and the real quantized digits MLP 15-15-10 with shifts 2 and 4, all equal to `reference.run` in the circuit-IR simulator.
-* Real Qwen3.5-0.8B, A100, bf16: the digits MLP, 40/40 exact (`results/a100_digits.log`); and one 14-layer machine running four programs, 24/24 exact (`results/a100_general.log`). Not verified there: the deep MLP, the CNN, the frontend's residual MLP, other Qwen3.5 sizes.
+* Real Qwen3.5-0.8B, A100, bf16: the digits MLP, 40/40 exact (`results/a100_digits.log`); and one 14-layer machine running four programs, 24/24 exact (`results/a100_general.log`). The deep MLP, the CNN and the frontend's residual MLP ran in pages with tile groups (`results/a100_wide_*.log`, [WIDE.md](WIDE.md)).

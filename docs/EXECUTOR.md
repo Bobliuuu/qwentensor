@@ -128,4 +128,4 @@ Model sizes: `digits` and `general` with `QWEN_DIR` set to the 2B and 4B checkpo
 ## 8. Remaining unsolved (summary)
 loops / data-dependent branches / early exit; in-model weight streaming (weights are resident inside a run; larger networks are paged by the host, `docs/STREAMING.md`); conv `groups` unrolled (P x columns); SSA register
 file (program length <= registers); signed activations / `act=linear` (outputs are relu-clamped); attention / softmax / norms (IR level);
-hardware size: heads ~ 2 per column (16 per layer), so ~100 neurons is the practical ceiling on this model.
+hardware size: heads ~ 2 per column (16 per layer); one machine holds at most 126 neurons (126 columns, 128 op slots), see `docs/LIMITS.md`.
