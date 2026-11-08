@@ -13,3 +13,13 @@ results/raw/
 viz/out/stills/
 viz/data/scratch/
 viz/node_modules/
+
+# --- secrets / infrastructure identifiers: never commit (see skill github-workflow) ---
+*.pem
+*.key
+known_hosts
+.env
+.env.*
+vast_api_key
+sw.sh
+*.local.sh
