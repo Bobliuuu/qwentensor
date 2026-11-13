@@ -20,6 +20,8 @@ badges:
   - {label: bits, message: "5-bit ints", color: 27c8e8}
   - {label: base, message: "Qwen3.5 0.8B / 2B / 4B", color: 7e57c2}
   - {label: license, message: MIT, color: f2c14e, link: LICENSE}
+  - {label: release, message: v0.1.0, color: 27c8e8, logo: github, link: "https://github.com/Bobliuuu/qwentensor/releases/tag/v0.1.0"}
+  - {label: "Hugging Face", message: "A100 logs", color: ffd21e, logo: huggingface, link: "https://huggingface.co/datasets/Bobliu/qwentensor"}
 nav:
   - {emoji: "🎬", label: Video, anchor: video}
   - {emoji: "📊", label: At a glance, anchor: results-at-a-glance}

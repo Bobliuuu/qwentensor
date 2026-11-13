@@ -6,13 +6,17 @@
 
 **Write a PyTorch network. Quantize it. Run it inside Qwen3.5. The program is just the prompt.**
 
-[![tests: CPU suite](https://img.shields.io/badge/tests-CPU%20suite-3ddc97)](https://github.com/Bobliuuu/qwentensor/actions) ![real-model runs exact: 120 of 120 digits runs](https://img.shields.io/badge/real--model%20runs%20exact-120%20of%20120%20digits%20runs-3ddc97) ![page mismatches: 0](https://img.shields.io/badge/page%20mismatches-0-3ddc97) ![bits: 5-bit ints](https://img.shields.io/badge/bits-5--bit%20ints-27c8e8) ![base: Qwen3.5 0.8B / 2B / 4B](https://img.shields.io/badge/base-Qwen3.5%200.8B%20%2F%202B%20%2F%204B-7e57c2) [![license: MIT](https://img.shields.io/badge/license-MIT-f2c14e)](LICENSE)
+[![tests: CPU suite](https://img.shields.io/badge/tests-CPU%20suite-3ddc97)](https://github.com/Bobliuuu/qwentensor/actions) ![real-model runs exact: 120 of 120 digits runs](https://img.shields.io/badge/real--model%20runs%20exact-120%20of%20120%20digits%20runs-3ddc97) ![page mismatches: 0](https://img.shields.io/badge/page%20mismatches-0-3ddc97) ![bits: 5-bit ints](https://img.shields.io/badge/bits-5--bit%20ints-27c8e8) ![base: Qwen3.5 0.8B / 2B / 4B](https://img.shields.io/badge/base-Qwen3.5%200.8B%20%2F%202B%20%2F%204B-7e57c2) [![license: MIT](https://img.shields.io/badge/license-MIT-f2c14e)](LICENSE) [![release: v0.1.0](https://img.shields.io/badge/release-v0.1.0-27c8e8?logo=github&logoColor=white)](https://github.com/Bobliuuu/qwentensor/releases/tag/v0.1.0) [![Hugging Face: A100 logs](https://img.shields.io/badge/Hugging%20Face-A100%20logs-ffd21e?logo=huggingface&logoColor=white)](https://huggingface.co/datasets/Bobliu/qwentensor)
 
 [🎬 Video](#video) · [📊 At a glance](#results-at-a-glance) · [🚀 Quickstart](#quickstart) · [🏗️ Architecture](#architecture-at-a-glance) · [🧩 Ops](#supported-pytorch-ops) · [⚠️ Limits](#limits) · [📊 Results](#results) · [🗺️ Repo map](#repo-map)
 
 </div>
 
 ---
+
+**Explainer video (voice-over and subtitles): a PyTorch network compiled into a prompt and executed by Qwen3.5**
+
+[![Explainer video preview (click for the mp4)](video/preview.gif)](video/qwentensor_explainer.mp4)
 
 Write a small neural network in PyTorch, quantize it to 5-bit integers, and run it as a program inside Qwen3.5 using the [qwenTPU](https://github.com/Bobliuuu/qwentpu) machinery.
 The program, including the schedule, is written in the prompt; the host only runs `argmax; append`.
