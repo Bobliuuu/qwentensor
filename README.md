@@ -1,16 +1,18 @@
-<h1 align="center">🧠 qwentensor</h1>
+<div align="center">
 
-<p align="center"><b>Write a PyTorch network. Quantize it. Run it <i>inside</i> Qwen3.5.</b><br>
-No GPU kernels. No training. The "program" is just the prompt. 🧬</p>
+<img src="assets/hero.svg" alt="qwentensor" width="100%">
 
-<p align="center">
-<a href="https://github.com/Bobliuuu/qwentensor/actions"><img src="https://github.com/Bobliuuu/qwentensor/actions/workflows/tests.yml/badge.svg" alt="tests"></a>
-<img src="https://img.shields.io/badge/real%20model-0%20mismatches-brightgreen" alt="0 mismatches on the real model">
-<img src="https://img.shields.io/badge/bits-5--bit%20ints-blue" alt="5-bit">
-<img src="https://img.shields.io/badge/license-MIT-lightgrey" alt="MIT">
-</p>
+# 🧠 qwentensor
 
-<p align="center"><a href="#-quickstart">🚀 Quickstart</a> · <a href="#-supported-pytorch-ops">🧩 Ops</a> · <a href="#-results-540-held-out-sklearn-digits-seeds-fixed-python-examplesname">📊 Results</a> · <a href="#-limits">⚠️ Limits</a> · <a href="docs/DESIGN.md">📐 Design</a> · <a href="https://github.com/Bobliuuu/qwentpu">🔗 qwenTPU</a></p>
+**Write a PyTorch network. Quantize it. Run it inside Qwen3.5. The program is just the prompt.**
+
+[![tests: CPU suite](https://img.shields.io/badge/tests-CPU%20suite-3ddc97)](https://github.com/Bobliuuu/qwentensor/actions) ![real-model runs exact: 120 of 120 digits runs](https://img.shields.io/badge/real--model%20runs%20exact-120%20of%20120%20digits%20runs-3ddc97) ![page mismatches: 0](https://img.shields.io/badge/page%20mismatches-0-3ddc97) ![bits: 5-bit ints](https://img.shields.io/badge/bits-5--bit%20ints-27c8e8) ![base: Qwen3.5 0.8B / 2B / 4B](https://img.shields.io/badge/base-Qwen3.5%200.8B%20%2F%202B%20%2F%204B-7e57c2) [![license: MIT](https://img.shields.io/badge/license-MIT-f2c14e)](LICENSE)
+
+[🎬 Video](#video) · [📊 At a glance](#results-at-a-glance) · [🚀 Quickstart](#quickstart) · [🏗️ Architecture](#architecture-at-a-glance) · [🧩 Ops](#supported-pytorch-ops) · [⚠️ Limits](#limits) · [📊 Results](#results) · [🗺️ Repo map](#repo-map)
+
+</div>
+
+---
 
 Write a small neural network in PyTorch, quantize it to 5-bit integers, and run it as a program inside Qwen3.5 using the [qwenTPU](https://github.com/Bobliuuu/qwentpu) machinery.
 The program, including the schedule, is written in the prompt; the host only runs `argmax; append`.
@@ -111,6 +113,79 @@ Throughput, same protocol as above (20 inputs, all exact in both modes, [log](re
 One lane halves the tokens at the same circuit size: 2.0x faster eager, 1.6x faster in the graph loop and 1.3x per inference (the graph path's 100 ms prefill is not reduced). Two lanes cut the tokens to 13 but need two columns per neuron (56 columns, 121 heads, 17 layers, vocab 71840), so
 a token costs 2x more; it ties one lane eagerly (322 ms) and is slower with CUDA graphs. One lane is the faster configuration for this network.
 
+<a id="results-at-a-glance"></a>
+
+## 📊 Results at a glance
+
+Measured on real Qwen3.5 models (A100, bf16), parsed from the committed logs in `results/a100_*.log`.
+
+| Digits runs exact | General runs exact | Page runs, 0 mismatches | Tokens/s (CUDA graph) |
+|:---:|:---:|:---:|:---:|
+| **120** | **72** | **3,454** | **307 tok/s** |
+
+**Bit-exact on the real model, by size**
+
+| Model | digits exact | of | general exact | of | hidden (digits machine) |
+| :--- | ---: | ---: | ---: | ---: | ---: |
+| Qwen3.5-0.8B | 40 | 40 | 24 | 24 | 3,072 |
+| Qwen3.5-2B | 40 | 40 | 24 | 24 | 4,096 |
+| Qwen3.5-4B | 40 | 40 | 24 | 24 | 4,608 |
+
+<sub>Source: `results/derived/readme_data.json`</sub>
+
+**One compiled machine, four programs (Qwen3.5-0.8B)**
+
+| Program | Exact | of | Prompt tokens | Emitted |
+| :--- | ---: | ---: | ---: | ---: |
+| digits MLP 15-15-10 | 6 | 6 | 459 | 50 |
+| random MLP 20-8-4 (K=20 spans 2 tiles) | 6 | 6 | 282 | 24 |
+| random 4-layer 8-5-5-5-4 | 6 | 6 | 259 | 38 |
+| residual block (concat, identity rows) | 6 | 6 | 222 | 28 |
+
+<sub>Source: `results/derived/readme_data.json`</sub>
+
+**Paged and wide networks on Qwen3.5-0.8B (both readouts summed)**
+
+| Network | digit x readout runs | Exact | Page runs | Tokens emitted | Mismatches |
+| :--- | ---: | ---: | ---: | ---: | ---: |
+| stream residual | 20 | 20 | 140 | 2,800 | 0 |
+| stream deep | 20 | 20 | 200 | 5,680 | 0 |
+| stream cnn | 20 | 20 | 720 | 17,040 | 0 |
+| wide residual | 20 | 20 | 280 | 4,240 | 0 |
+| wide deep | 20 | 20 | 740 | 8,080 | 0 |
+| wide cnn | 12 | 12 | 1,320 | 18,672 | 0 |
+| wide784 | 6 | 6 | 54 | 144 | 0 |
+
+<sub>Source: `results/derived/readme_data.json`</sub>
+
+**Throughput, digits MLP, Qwen3.5-0.8B, A100 (20 inputs, all exact)**
+
+| Chip path | Prefill (ms) | Emitted-token loop (ms) | tok/s | ms/token | End to end (ms) | inferences/s |
+| :--- | ---: | ---: | ---: | ---: | ---: | ---: |
+| eager | 24.1 | 657.1 | 76 | 13.14 | 681.2 | 1.47 |
+| CUDA-graph | 102.1 | 162.7 | 307 | 3.25 | 264.8 | 3.78 |
+
+<sub>Source: `results/derived/readme_data.json`</sub>
+
+<p align="center"><img src="assets/models_general.svg" alt="Bit-exact runs on real Qwen3.5 (A100, bf16)" width="100%"></p>
+
+<p align="center"><img src="assets/paged_pages.svg" alt="Page runs per paged network, all exact (both readouts)" width="100%"></p>
+
+<p align="center"><img src="assets/throughput.svg" alt="Digits MLP on Qwen3.5-0.8B (A100): emitted tokens per second" width="100%"></p>
+
+<p align="center"><img src="assets/flow.svg" alt="qwentensor pipeline" width="100%"></p>
+
+<p align="center"><img src="video/preview.gif" alt="animated overview of the explainer video" width="70%"></p>
+
+<details>
+<summary>Scalar versus vectorized machine: end-to-end time</summary>
+
+<p align="center"><img src="assets/vec_e2e.svg" alt="End-to-end ms per inference by machine and chip path (lower is better)" width="100%"></p>
+
+</details>
+
+<a id="how-it-differs-from-qwentpu"></a>
+
 ## 🔀 How it differs from qwenTPU
 
 | | what runs | who decides the computation |
@@ -134,7 +209,6 @@ nn.Module --torch.fx--> float IR --quantize (PTQ, optional STE QAT)--> integer I
 
 <p align="center"><img src="docs/anim/shift_and_bias.gif" alt="clamped sums with and without a shift, bias rows 1 versus 4" width="100%"></p>
 
-
 | piece | path | status |
 |---|---|---|
 | IR contract (ops, ranges, lowering table, supported/unsupported ops) | `docs/IR.md`, `qwentensor/ir.py` | done |
@@ -146,6 +220,8 @@ nn.Module --torch.fx--> float IR --quantize (PTQ, optional STE QAT)--> integer I
 | examples, tests | `examples/`, `tests/` | done (83 CPU tests) |
 
 Design write-up: [docs/DESIGN.md](docs/DESIGN.md). Project page: `docs/site/`.
+
+<a id="quickstart"></a>
 
 ## 🚀 Quickstart
 
@@ -178,6 +254,8 @@ Errors: `qt.UnsupportedOpError` names the op; `qt.DoesNotFit` gives the neuron c
 Step-by-step (what `compile` does): `frontend.from_torch` -> `quant.quantize(fg, X_calib, QConfig("v2.1", bias_rows=4))` -> optional `quant.qat` ->
 `machine.sched.compile_graph` -> `Program.prompt()`.
 
+<a id="architecture-at-a-glance"></a>
+
 ## 🏗️ Architecture at a glance
 
 <p align="center"><img src="viz/images/architecture.png" alt="architecture: nn.Module to torch.fx to quantize to integer IR to prompt to Qwen3.5" width="100%"></p>
@@ -188,6 +266,8 @@ The diagram is the CPU-simulator build of the digits MLP (QAT, shifts 4 and 4, 2
 
 <p align="center"><img src="viz/images/quantization.png" alt="float weights to 5-bit integers, accuracy float vs PTQ vs QAT" width="100%"></p>
 
+<a id="supported-pytorch-ops"></a>
+
 ## 🧩 Supported PyTorch ops
 
 Authoritative table: [docs/IR.md](docs/IR.md) section 3.
@@ -195,6 +275,8 @@ Authoritative table: [docs/IR.md](docs/IR.md) section 3.
 | supported | rejected with `UnsupportedOpError` (and how it could be added, see DESIGN.md section 10) |
 |---|---|
 | `Linear`, `ReLU`, `Conv2d` (im2col, groups=1, dilation=1, zero padding, any stride), residual `Add`, `AvgPool2d` / `AdaptiveAvgPool2d`, `Flatten` / `view` / `reshape`, `Embedding` on the integer input, `Identity` / `Dropout` (eval), trailing `argmax` | `Softmax` / `log_softmax` (a trailing one before argmax is dropped), `LayerNorm`, `BatchNorm` (fold it first; not automatic yet), `GELU` / `SiLU` / `Sigmoid` / `Tanh`, `MaxPool2d`, attention, data x data products, recurrent layers, control flow |
+
+<a id="limits"></a>
 
 ## ⚠️ Limits
 
@@ -205,7 +287,11 @@ Authoritative table: [docs/IR.md](docs/IR.md) section 3.
 * **The vectorized machine and wide neurons are not combined:** each was verified alone on the real model, and `lanes=` raises `qt.DoesNotFit` for a neuron wider than one adder tree (`fan * rows` above 48).
 * **Unsigned interior activations**; final logits are relu-clamped to 0..31.
 
-## 📊 Results (540 held-out sklearn digits, seeds fixed, `python examples/<name>.py`)
+<a id="results"></a>
+
+## 📊 Results
+
+*540 held-out sklearn digits, seeds fixed, `python examples/<name>.py`.*
 
 Integer accuracy = bit-exact `reference.run` of the quantized IR (what the machine must reproduce). "PTQ" = post-training quantization with 512 calibration
 samples taken from the training split; "+QAT" = STE fine-tuning of the integer weights, model selection on TRAIN accuracy only.
@@ -232,7 +318,11 @@ Honest reading of the losses:
   and 5-14 points on the tiny 15-15-10 net before QAT. Float numbers vary +-1.5 points with the training seed; ours are one fixed seed each.
 * No BatchNorm folding yet, no signed interior activations, classification-only QAT.
 
-## ⚙️ Compile and run through the machine (`examples/run_*.py`, CPU circuit simulator)
+<a id="compile-and-run-through-the-machine"></a>
+
+## ⚙️ Compile and run through the machine
+
+*`examples/run_*.py`, CPU circuit simulator.*
 
 Held-out sklearn digits (540). Machine accuracy is only measured for the digits MLP.
 
@@ -252,10 +342,14 @@ Held-out sklearn digits (540). Machine accuracy is only measured for the digits 
 The variants' float / int accuracy is from `reference.run` on all 540 digits; their machine accuracy was not measured. "Token golden" is the independent numpy model of the machine
 (`asm.reference_emit`), run page by page. All of the above is the CPU simulator. Real-model claims are only the A100 logs in Status.
 
+<a id="where-the-model-run-is-still-open"></a>
+
 ## 🔭 Where the model run is still open
 
 * `scripts/gpu_run.py digits`, `general`, `residual`, `throughput`, `stream`, `wide` and `wide784` and `scripts/gpu_vec.py exact`, `general` and `bench` are done on 0.8B, and `digits` and `general` also on 2B and 4B (see Status). Still open on the real model: a machine larger than 58 columns, in-model weight streaming (the host carries activations between pages), the paged and wide networks and throughput on 2B and 4B, and the vectorized machine with wide neurons.
 * Not covered by the IR and how it could be: [docs/DESIGN.md](docs/DESIGN.md) section 10.
+
+<a id="credits-and-license"></a>
 
 ## 🙏 Credits and license
 
@@ -270,3 +364,24 @@ Built on [qwenTPU](https://github.com/Bobliuuu/qwentpu) (the in-weights integer 
   note   = {https://github.com/Bobliuuu/qwentensor}
 }
 ```
+
+<a id="repo-map"></a>
+
+## 🗺️ Repo map
+
+| Path | What it is |
+|---|---|
+| `qwentensor/` | frontend, quantizer, numpy golden, executor (machine/), API |
+| `examples/` | digits MLP, deep MLP, CNN and residual examples, run_* scripts |
+| `scripts/` | GPU runners (gpu_run.py, gpu_vec.py) |
+| `tests/` | CPU test suite |
+| `results/` | A100 logs; results/derived is produced by tools/readme_data.py |
+| `docs/` | design, IR, executor, streaming, wide, vectorized, limits; docs/readme holds the long README sections |
+| `tools/readme_data.py` | parses the A100 logs into the README/video data |
+| `README.spec.yml` | spec for video-readme-maker: README, charts and the explainer video |
+| `video/` | qwentensor_explainer.mp4, .srt, poster.png, preview.gif (generated) |
+| `assets/` | generated hero, charts and diagram |
+
+---
+
+<div align="center"><sub>Generated with video-readme-maker from README.spec.yml and results/.</sub></div>

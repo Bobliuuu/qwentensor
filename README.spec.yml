@@ -1,0 +1,274 @@
+# Spec for ~/video-readme-maker:  python3 ~/video-readme-maker/vrm.py all README.spec.yml
+# Numbers come from results/derived/readme_data.json, built by tools/readme_data.py from the committed A100 logs (results/a100_*.log).
+# Long technical sections are verbatim markdown in docs/readme/*.md (body_file).
+project:
+  name: qwentensor
+  emoji: "🧠"
+  tagline: "Write a PyTorch network. Quantize it. Run it inside Qwen3.5. The program is just the prompt."
+  repo: Bobliuuu/qwentensor
+hero:
+  title: qwentensor
+  subtitle: "nn.Module -> 5-bit integer program -> prompt -> Qwen3.5 executes it, bit-exact"
+  chips: [torch.fx frontend, 5-bit ints, program in the prompt, real Qwen3.5 on A100]
+theme: {accent: "#27c8e8", accent2: "#ff6b6b", accent3: "#f2c14e", good: "#3ddc97"}
+readme_out: README.md
+assets_dir: assets
+badges:
+  - {label: tests, message: "CPU suite", color: 3ddc97, link: "https://github.com/Bobliuuu/qwentensor/actions"}
+  - {label: "real-model runs exact", message: "{{ n.digits_exact.text }} of {{ n.digits_runs.text }} digits runs", color: 3ddc97}
+  - {label: "page mismatches", message: "{{ n.page_mm.text }}", color: 3ddc97}
+  - {label: bits, message: "5-bit ints", color: 27c8e8}
+  - {label: base, message: "Qwen3.5 0.8B / 2B / 4B", color: 7e57c2}
+  - {label: license, message: MIT, color: f2c14e, link: LICENSE}
+nav:
+  - {emoji: "🎬", label: Video, anchor: video}
+  - {emoji: "📊", label: At a glance, anchor: results-at-a-glance}
+  - {emoji: "🚀", label: Quickstart, anchor: quickstart}
+  - {emoji: "🏗️", label: Architecture, anchor: architecture-at-a-glance}
+  - {emoji: "🧩", label: Ops, anchor: supported-pytorch-ops}
+  - {emoji: "⚠️", label: Limits, anchor: limits}
+  - {emoji: "📊", label: Results, anchor: results}
+  - {emoji: "🗺️", label: Repo map, anchor: repo-map}
+
+numbers:
+  digits_runs: {file: results/derived/readme_data.json, path: totals.digits_total_runs, fmt: "{:.0f}"}
+  digits_exact: {file: results/derived/readme_data.json, path: totals.digits_exact, fmt: "{:.0f}"}
+  general_runs: {file: results/derived/readme_data.json, path: totals.general_runs}
+  general_exact: {file: results/derived/readme_data.json, path: totals.general_exact}
+  page_runs: {file: results/derived/readme_data.json, path: totals.page_runs, fmt: "{:,.0f}"}
+  page_mm: {file: results/derived/readme_data.json, path: totals.page_mismatches}
+  paged_exact: {file: results/derived/readme_data.json, path: totals.paged_digits_exact}
+  paged_total: {file: results/derived/readme_data.json, path: totals.paged_digits_total}
+  m08_digits: {file: results/derived/readme_data.json, path: "models.key=m08.digits_exact"}
+  m08_general: {file: results/derived/readme_data.json, path: "models.key=m08.general_exact"}
+  hid08: {file: results/derived/readme_data.json, path: "models.key=m08.hidden", fmt: "{:,.0f}"}
+  hid4b: {file: results/derived/readme_data.json, path: "models.key=m4.hidden", fmt: "{:,.0f}"}
+  eager_tok: {file: results/derived/readme_data.json, path: "throughput.path=eager.tok_s", fmt: "{:.0f}", unit: " tok/s"}
+  graph_tok: {file: results/derived/readme_data.json, path: "throughput.path=CUDA-graph.tok_s", fmt: "{:.0f}", unit: " tok/s"}
+  eager_ms: {file: results/derived/readme_data.json, path: "throughput.path=eager.ms_per_token", fmt: "{:.2f}", unit: " ms"}
+  graph_ms: {file: results/derived/readme_data.json, path: "throughput.path=CUDA-graph.ms_per_token", fmt: "{:.2f}", unit: " ms"}
+  graph_speedup: {expr: "eager_ms_raw / graph_ms_raw", fmt: "{:.1f}", unit: "x"}
+  eager_ms_raw: {file: results/derived/readme_data.json, path: "throughput.path=eager.ms_per_token"}
+  graph_ms_raw: {file: results/derived/readme_data.json, path: "throughput.path=CUDA-graph.ms_per_token"}
+  graph_inf: {file: results/derived/readme_data.json, path: "throughput.path=CUDA-graph.inf_s", fmt: "{:.2f}"}
+  cnn_pages: {file: results/derived/readme_data.json, path: "paged_networks.network=wide cnn.pages_run"}
+
+intro_file: docs/readme/00-intro.md
+
+video:
+  url: ""
+  caption: "Explainer video (voice-over and subtitles): a PyTorch network compiled into a prompt and executed by Qwen3.5"
+  mp4: video/qwentensor_explainer.mp4
+  gif: video/preview.gif
+  srt: video/qwentensor_explainer.srt
+  poster: video/poster.png
+  out_dir: video/.render
+  fps: 24
+  max_mb: 22
+  render_crf: 20
+  concurrency: 4
+  poster_at: 60
+  music: true
+  voice: {engine: openai, voice: alloy, model: gpt-4o-mini-tts, tempo: 1.2}
+  scenes:
+    - type: title
+      title: qwentensor
+      subtitle: A PyTorch network, run as a program inside Qwen3.5
+      chips: [5-bit ints, program in the prompt, Qwen3.5 on an A100]
+      say: "qwentensor. Write a small PyTorch network, quantize it to five bit integers, and run it inside Qwen three point five, with no GPU kernels and no training. The program is just the prompt."
+    - type: problem
+      heading: The idea
+      bullets:
+        - "Qwen3.5 layers can hold an integer compute array in their weights (qwenTPU)"
+        - "But that machine was fixed: one matvec, or one hardcoded chain"
+        - "Can the program itself live in the prompt?"
+      say: "The qwenTPU project showed that Qwen's layers can hold an integer compute array. But that machine was fixed: one matrix vector product, or one hard coded chain of them. qwentensor asks whether the program itself can live in the prompt, so that swapping the prompt swaps the network."
+    - type: architecture
+      diagram: flow
+      heading: "From nn.Module to emitted tokens"
+      say: "A torch module goes through the torch f x frontend into a float graph, then post training quantization, with optional quantization aware fine tuning, into an integer graph. That graph has a bit exact numpy golden, and an executor that writes the schedule, successors, masks and shifts as tokens in the prompt. The host then only runs argmax and append."
+    - type: terminal
+      heading: "Compile and run"
+      lines:
+        - {cmd: "python examples/digits_mlp.py"}
+        - {out: "float vs integer accuracy"}
+        - {cmd: "python examples/run_digits_mlp.py 20"}
+        - {out: "machine output asserted equal to reference.run"}
+      say: "In practice, you call qt dot compile on a module with calibration data. The result runs a batch, and asserts that what the machine emitted equals the numpy reference, bit for bit."
+    - type: stat
+      number: digits_exact
+      kicker: "digits MLP runs on real Qwen3.5, 0.8B, 2B and 4B"
+      label: "of {{ n.digits_runs.text }} exact"
+      sub: "emitted tokens equal the numpy token golden and outputs equal reference.run"
+      say: "On real Qwen three point five models on an A100, the digits network ran exact {{ n.digits_exact.numtext }} times out of {{ n.digits_runs.numtext }}, across the zero point eight, two and four billion parameter models. Every emitted token matched the numpy golden."
+    - type: chart
+      chart: models_general
+      say: "A second test compiled one machine and ran four different programs on it, six inputs each, changing only the prompt. That is {{ n.m08_general.numtext }} of {{ n.m08_general.numtext }} exact on the zero point eight B model, and the same on the two and four B models. Only the hidden size changes, from {{ n.hid08.numtext }} up to {{ n.hid4b.numtext }}."
+    - type: chart
+      chart: paged_pages
+      say: "Networks larger than one machine run in pages. Each page is a fresh prompt, and the host copies integer outputs from one page into the next. The deep, residual and convolutional networks ran this way, up to {{ n.cnn_pages.numtext }} page runs for the largest convolutional network, with {{ n.page_mm.numtext }} mismatches across all {{ n.page_runs.numtext }} page runs."
+    - type: chart
+      chart: throughput
+      say: "Throughput on the zero point eight B model: with CUDA graphs a token takes {{ n.graph_ms.numtext }} milliseconds, against {{ n.eager_ms.numtext }} eagerly. That is {{ n.graph_speedup.numtext }} faster per emitted token, or {{ n.graph_inf.numtext }} inferences per second."
+    - type: caveats
+      heading: "Honest limits"
+      bullets:
+        - "One machine holds at most 128 ops and 126 columns; bigger networks run in pages"
+        - "Between pages the host carries the activations"
+        - "No loops, no data-dependent branches; unsigned interior activations"
+        - "Paged and wide runs were verified on the 0.8B model only"
+      say: "Honest limits. One machine holds at most one hundred twenty eight ops and one hundred twenty six columns, so larger networks run in pages, and between pages the host carries the activations. There are no loops or data dependent branches. And the paged and wide networks were verified on the zero point eight B model only."
+    - type: end
+      title: qwentensor
+      subtitle: "Code, logs and design docs are in the repo"
+      say: "The code, the A100 logs, and the design documents are in the repo."
+
+charts:
+  - id: models_general
+    type: gbar
+    title: "Bit-exact runs on real Qwen3.5 (A100, bf16)"
+    subtitle: "digits MLP: 40 runs; general: 4 programs x 6 inputs = 24 runs; exact count shown"
+    better: higher
+    file: results/derived/readme_data.json
+    rows_path: models_long
+    cat: model
+    series: test
+    y: exact
+    fmt: "{:.0f}"
+  - id: paged_pages
+    type: bar
+    title: "Page runs per paged network, all exact (both readouts)"
+    better: higher
+    file: results/derived/readme_data.json
+    rows_path: paged_networks
+    label: network
+    y: pages_run
+    fmt: "{:,.0f}"
+  - id: throughput
+    type: bar
+    title: "Digits MLP on Qwen3.5-0.8B (A100): emitted tokens per second"
+    better: higher
+    file: results/derived/readme_data.json
+    rows_path: throughput
+    label: path
+    y: tok_s
+    fmt: "{:.0f}"
+    unit: " tok/s"
+    highlight: CUDA-graph
+  - id: vec_e2e
+    type: bar
+    title: "End-to-end ms per inference by machine and chip path (lower is better)"
+    better: lower
+    file: results/derived/readme_data.json
+    rows_path: vec
+    label: series
+    y: e2e_ms
+    fmt: "{:.0f}"
+    unit: " ms"
+
+tables:
+  - id: models_tbl
+    title: "Bit-exact on the real model, by size"
+    file: results/derived/readme_data.json
+    rows_path: models
+    columns:
+      - {key: model, title: Model}
+      - {key: digits_exact, title: "digits exact", align: right}
+      - {key: digits_total, title: "of", align: right}
+      - {key: general_exact, title: "general exact", align: right}
+      - {key: general_total, title: "of", align: right}
+      - {key: hidden, title: "hidden (digits machine)", align: right, fmt: "{:,.0f}"}
+  - id: programs_tbl
+    title: "One compiled machine, four programs (Qwen3.5-0.8B)"
+    file: results/derived/readme_data.json
+    rows_path: programs
+    columns:
+      - {key: program, title: Program}
+      - {key: exact, title: Exact, align: right}
+      - {key: total, title: of, align: right}
+      - {key: prompt, title: "Prompt tokens", align: right}
+      - {key: emitted, title: Emitted, align: right}
+  - id: paged_tbl
+    title: "Paged and wide networks on Qwen3.5-0.8B (both readouts summed)"
+    file: results/derived/readme_data.json
+    rows_path: paged_networks
+    columns:
+      - {key: network, title: Network}
+      - {key: digit_runs, title: "digit x readout runs", align: right}
+      - {key: exact, title: Exact, align: right}
+      - {key: pages_run, title: "Page runs", align: right}
+      - {key: emitted, title: "Tokens emitted", align: right, fmt: "{:,.0f}"}
+      - {key: mismatches, title: Mismatches, align: right}
+  - id: thr_tbl
+    title: "Throughput, digits MLP, Qwen3.5-0.8B, A100 (20 inputs, all exact)"
+    file: results/derived/readme_data.json
+    rows_path: throughput
+    columns:
+      - {key: path, title: "Chip path"}
+      - {key: prefill_ms, title: "Prefill (ms)", align: right, fmt: "{:.1f}"}
+      - {key: loop_ms, title: "Emitted-token loop (ms)", align: right, fmt: "{:.1f}"}
+      - {key: tok_s, title: "tok/s", align: right, fmt: "{:.0f}"}
+      - {key: ms_per_token, title: "ms/token", align: right, fmt: "{:.2f}"}
+      - {key: e2e_ms, title: "End to end (ms)", align: right, fmt: "{:.1f}"}
+      - {key: inf_s, title: "inferences/s", align: right, fmt: "{:.2f}"}
+
+diagrams:
+  - id: flow
+    title: "qwentensor pipeline"
+    nodes:
+      - {id: nn, label: "nn.Module", sub: "Linear, ReLU, Conv, Add, pooling", col: 0, row: 0, kind: io}
+      - {id: fx, label: "torch.fx frontend", sub: "float IR", col: 1, row: 0}
+      - {id: q, label: "Quantize", sub: "PTQ, optional STE QAT, 5-bit", col: 2, row: 0}
+      - {id: ir, label: "Integer IR", sub: "numpy golden: reference.run", col: 3, row: 0, kind: store}
+      - {id: ex, label: "Executor", sub: "program, successors, masks, shifts as tokens", col: 3, row: 1, kind: accent}
+      - {id: pr, label: "Prompt", sub: "the program", col: 2, row: 1, kind: io}
+      - {id: qw, label: "Qwen3.5", sub: "host: argmax; append", col: 1, row: 1, kind: accent}
+      - {id: out, label: "Emitted tokens", sub: "== numpy token golden", col: 0, row: 1, kind: io}
+    edges:
+      - {from: nn, to: fx}
+      - {from: fx, to: q}
+      - {from: q, to: ir}
+      - {from: ir, to: ex}
+      - {from: ex, to: pr}
+      - {from: pr, to: qw}
+      - {from: qw, to: out}
+
+sections:
+  - title: Results at a glance
+    emoji: "📊"
+    id: results-at-a-glance
+    body: "Measured on real Qwen3.5 models (A100, bf16), parsed from the committed logs in `results/a100_*.log`."
+    highlights:
+      - {label: "Digits runs exact", number: digits_exact}
+      - {label: "General runs exact", number: general_exact}
+      - {label: "Page runs, 0 mismatches", number: page_runs}
+      - {label: "Tokens/s (CUDA graph)", number: graph_tok}
+    diagrams: [flow]
+    charts: [models_general, paged_pages, throughput]
+    images:
+      - {src: video/preview.gif, alt: "animated overview of the explainer video", width: "70%"}
+    tables: [models_tbl, programs_tbl, paged_tbl, thr_tbl]
+    details:
+      - summary: "Scalar versus vectorized machine: end-to-end time"
+        charts: [vec_e2e]
+  - {title: "How it differs from qwenTPU", emoji: "🔀", body_file: docs/readme/01-how-it-differs-from-qwentpu.md}
+  - {title: "Quickstart", emoji: "🚀", body_file: docs/readme/02-quickstart.md}
+  - {title: "Architecture at a glance", emoji: "🏗️", body_file: docs/readme/03-architecture-at-a-glance.md}
+  - {title: "Supported PyTorch ops", emoji: "🧩", body_file: docs/readme/04-supported-pytorch-ops.md}
+  - {title: "Limits", emoji: "⚠️", body_file: docs/readme/05-limits.md}
+  - {title: "Results", emoji: "📊", body_file: docs/readme/06-results-540-held-out-sklearn-digits-seed.md, body: "*540 held-out sklearn digits, seeds fixed, `python examples/<name>.py`.*"}
+  - {title: "Compile and run through the machine", emoji: "⚙️", body_file: docs/readme/07-compile-and-run-through-the-machine-exam.md, body: "*`examples/run_*.py`, CPU circuit simulator.*"}
+  - {title: "Where the model run is still open", emoji: "🔭", body_file: docs/readme/08-where-the-model-run-is-still-open.md}
+  - {title: "Credits and license", emoji: "🙏", body_file: docs/readme/09-credits-and-license.md}
+repo_map:
+  - {path: qwentensor/, desc: "frontend, quantizer, numpy golden, executor (machine/), API"}
+  - {path: examples/, desc: "digits MLP, deep MLP, CNN and residual examples, run_* scripts"}
+  - {path: scripts/, desc: "GPU runners (gpu_run.py, gpu_vec.py)"}
+  - {path: tests/, desc: "CPU test suite"}
+  - {path: results/, desc: "A100 logs; results/derived is produced by tools/readme_data.py"}
+  - {path: docs/, desc: "design, IR, executor, streaming, wide, vectorized, limits; docs/readme holds the long README sections"}
+  - {path: tools/readme_data.py, desc: "parses the A100 logs into the README/video data"}
+  - {path: README.spec.yml, desc: "spec for video-readme-maker: README, charts and the explainer video"}
+  - {path: video/, desc: "qwentensor_explainer.mp4, .srt, poster.png, preview.gif (generated)", generated: true}
+  - {path: assets/, desc: "generated hero, charts and diagram", generated: true}
+footer: "Generated with video-readme-maker from README.spec.yml and results/."

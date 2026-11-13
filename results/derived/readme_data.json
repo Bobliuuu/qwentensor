@@ -1,0 +1,421 @@
+{
+ "models": [
+  {
+   "key": "m08",
+   "model": "Qwen3.5-0.8B",
+   "digits_exact": 40,
+   "digits_total": 40,
+   "general_exact": 24,
+   "general_total": 24,
+   "hidden": 3072,
+   "bad": 0
+  },
+  {
+   "key": "m2",
+   "model": "Qwen3.5-2B",
+   "digits_exact": 40,
+   "digits_total": 40,
+   "general_exact": 24,
+   "general_total": 24,
+   "hidden": 4096,
+   "bad": 0
+  },
+  {
+   "key": "m4",
+   "model": "Qwen3.5-4B",
+   "digits_exact": 40,
+   "digits_total": 40,
+   "general_exact": 24,
+   "general_total": 24,
+   "hidden": 4608,
+   "bad": 0
+  }
+ ],
+ "models_long": [
+  {
+   "model": "Qwen3.5-0.8B",
+   "test": "digits MLP",
+   "exact": 40
+  },
+  {
+   "model": "Qwen3.5-0.8B",
+   "test": "general (4 programs)",
+   "exact": 24
+  },
+  {
+   "model": "Qwen3.5-2B",
+   "test": "digits MLP",
+   "exact": 40
+  },
+  {
+   "model": "Qwen3.5-2B",
+   "test": "general (4 programs)",
+   "exact": 24
+  },
+  {
+   "model": "Qwen3.5-4B",
+   "test": "digits MLP",
+   "exact": 40
+  },
+  {
+   "model": "Qwen3.5-4B",
+   "test": "general (4 programs)",
+   "exact": 24
+  }
+ ],
+ "programs": [
+  {
+   "program": "digits MLP 15-15-10",
+   "exact": 6,
+   "total": 6,
+   "prompt": 459,
+   "emitted": 50
+  },
+  {
+   "program": "random MLP 20-8-4 (K=20 spans 2 tiles)",
+   "exact": 6,
+   "total": 6,
+   "prompt": 282,
+   "emitted": 24
+  },
+  {
+   "program": "random 4-layer 8-5-5-5-4",
+   "exact": 6,
+   "total": 6,
+   "prompt": 259,
+   "emitted": 38
+  },
+  {
+   "program": "residual block (concat, identity rows)",
+   "exact": 6,
+   "total": 6,
+   "prompt": 222,
+   "emitted": 28
+  }
+ ],
+ "paged": [
+  {
+   "network": "stream residual",
+   "readout": "code",
+   "source": "a100_stream.log",
+   "digits_exact": 10,
+   "digits_total": 10,
+   "pages_run": 70,
+   "page_mismatches": 0,
+   "prompt_min": 161,
+   "prompt_max": 574,
+   "emitted": 1400
+  },
+  {
+   "network": "stream residual",
+   "readout": "lm_head",
+   "source": "a100_stream.log",
+   "digits_exact": 10,
+   "digits_total": 10,
+   "pages_run": 70,
+   "page_mismatches": 0,
+   "prompt_min": 161,
+   "prompt_max": 574,
+   "emitted": 1400
+  },
+  {
+   "network": "stream deep",
+   "readout": "code",
+   "source": "a100_stream.log",
+   "digits_exact": 10,
+   "digits_total": 10,
+   "pages_run": 100,
+   "page_mismatches": 0,
+   "prompt_min": 529,
+   "prompt_max": 749,
+   "emitted": 2840
+  },
+  {
+   "network": "stream deep",
+   "readout": "lm_head",
+   "source": "a100_stream.log",
+   "digits_exact": 10,
+   "digits_total": 10,
+   "pages_run": 100,
+   "page_mismatches": 0,
+   "prompt_min": 529,
+   "prompt_max": 749,
+   "emitted": 2840
+  },
+  {
+   "network": "stream cnn",
+   "readout": "code",
+   "source": "a100_stream.log",
+   "digits_exact": 10,
+   "digits_total": 10,
+   "pages_run": 360,
+   "page_mismatches": 0,
+   "prompt_min": 157,
+   "prompt_max": 452,
+   "emitted": 8520
+  },
+  {
+   "network": "stream cnn",
+   "readout": "lm_head",
+   "source": "a100_stream.log",
+   "digits_exact": 10,
+   "digits_total": 10,
+   "pages_run": 360,
+   "page_mismatches": 0,
+   "prompt_min": 157,
+   "prompt_max": 452,
+   "emitted": 8520
+  },
+  {
+   "network": "wide residual",
+   "readout": "code",
+   "source": "a100_wide_residual.log",
+   "digits_exact": 10,
+   "digits_total": 10,
+   "pages_run": 140,
+   "page_mismatches": 0,
+   "prompt_min": 120,
+   "prompt_max": 508,
+   "emitted": 2120
+  },
+  {
+   "network": "wide residual",
+   "readout": "lm_head",
+   "source": "a100_wide_residual.log",
+   "digits_exact": 10,
+   "digits_total": 10,
+   "pages_run": 140,
+   "page_mismatches": 0,
+   "prompt_min": 120,
+   "prompt_max": 508,
+   "emitted": 2120
+  },
+  {
+   "network": "wide deep",
+   "readout": "code",
+   "source": "a100_wide_deep.log",
+   "digits_exact": 10,
+   "digits_total": 10,
+   "pages_run": 370,
+   "page_mismatches": 0,
+   "prompt_min": 236,
+   "prompt_max": 610,
+   "emitted": 4040
+  },
+  {
+   "network": "wide deep",
+   "readout": "lm_head",
+   "source": "a100_wide_deep.log",
+   "digits_exact": 10,
+   "digits_total": 10,
+   "pages_run": 370,
+   "page_mismatches": 0,
+   "prompt_min": 236,
+   "prompt_max": 610,
+   "emitted": 4040
+  },
+  {
+   "network": "wide cnn",
+   "readout": "code",
+   "source": "a100_wide_cnn.log",
+   "digits_exact": 6,
+   "digits_total": 6,
+   "pages_run": 660,
+   "page_mismatches": 0,
+   "prompt_min": 744,
+   "prompt_max": 1382,
+   "emitted": 9336
+  },
+  {
+   "network": "wide cnn",
+   "readout": "lm_head",
+   "source": "a100_wide_cnn.log",
+   "digits_exact": 6,
+   "digits_total": 6,
+   "pages_run": 660,
+   "page_mismatches": 0,
+   "prompt_min": 744,
+   "prompt_max": 1382,
+   "emitted": 9336
+  },
+  {
+   "network": "wide784",
+   "readout": "code",
+   "source": "a100_wide784.log",
+   "digits_exact": 3,
+   "digits_total": 3,
+   "pages_run": 27,
+   "page_mismatches": 0,
+   "prompt_min": 1109,
+   "prompt_max": 1690,
+   "emitted": 72
+  },
+  {
+   "network": "wide784",
+   "readout": "lm_head",
+   "source": "a100_wide784.log",
+   "digits_exact": 3,
+   "digits_total": 3,
+   "pages_run": 27,
+   "page_mismatches": 0,
+   "prompt_min": 1109,
+   "prompt_max": 1690,
+   "emitted": 72
+  }
+ ],
+ "paged_networks": [
+  {
+   "network": "stream residual",
+   "digit_runs": 20,
+   "exact": 20,
+   "pages_run": 140,
+   "emitted": 2800,
+   "mismatches": 0
+  },
+  {
+   "network": "stream deep",
+   "digit_runs": 20,
+   "exact": 20,
+   "pages_run": 200,
+   "emitted": 5680,
+   "mismatches": 0
+  },
+  {
+   "network": "stream cnn",
+   "digit_runs": 20,
+   "exact": 20,
+   "pages_run": 720,
+   "emitted": 17040,
+   "mismatches": 0
+  },
+  {
+   "network": "wide residual",
+   "digit_runs": 20,
+   "exact": 20,
+   "pages_run": 280,
+   "emitted": 4240,
+   "mismatches": 0
+  },
+  {
+   "network": "wide deep",
+   "digit_runs": 20,
+   "exact": 20,
+   "pages_run": 740,
+   "emitted": 8080,
+   "mismatches": 0
+  },
+  {
+   "network": "wide cnn",
+   "digit_runs": 12,
+   "exact": 12,
+   "pages_run": 1320,
+   "emitted": 18672,
+   "mismatches": 0
+  },
+  {
+   "network": "wide784",
+   "digit_runs": 6,
+   "exact": 6,
+   "pages_run": 54,
+   "emitted": 144,
+   "mismatches": 0
+  }
+ ],
+ "throughput": [
+  {
+   "path": "eager",
+   "exact": 20,
+   "total": 20,
+   "prefill_ms": 24.1,
+   "loop_ms": 657.1,
+   "tok_s": 76.1,
+   "ms_per_token": 13.14,
+   "e2e_ms": 681.2,
+   "inf_s": 1.47
+  },
+  {
+   "path": "CUDA-graph",
+   "exact": 20,
+   "total": 20,
+   "prefill_ms": 102.1,
+   "loop_ms": 162.7,
+   "tok_s": 307.3,
+   "ms_per_token": 3.25,
+   "e2e_ms": 264.8,
+   "inf_s": 3.78
+  }
+ ],
+ "vec": [
+  {
+   "machine": "scalar",
+   "path": "eager",
+   "exact": 20,
+   "emitted": 50,
+   "layers": 9,
+   "tok_s": 76.2,
+   "e2e_ms": 680.3,
+   "series": "scalar eager"
+  },
+  {
+   "machine": "scalar",
+   "path": "CUDA-graph",
+   "exact": 20,
+   "emitted": 50,
+   "layers": 9,
+   "tok_s": 307.7,
+   "e2e_ms": 265.6,
+   "series": "scalar CUDA-graph"
+  },
+  {
+   "machine": "vectorized, 1 lane",
+   "path": "eager",
+   "exact": 20,
+   "emitted": 25,
+   "layers": 9,
+   "tok_s": 75.6,
+   "e2e_ms": 355.0,
+   "series": "vec1 eager"
+  },
+  {
+   "machine": "vectorized, 1 lane",
+   "path": "CUDA-graph",
+   "exact": 20,
+   "emitted": 25,
+   "layers": 9,
+   "tok_s": 248.5,
+   "e2e_ms": 205.4,
+   "series": "vec1 CUDA-graph"
+  },
+  {
+   "machine": "vectorized, 2 lanes",
+   "path": "eager",
+   "exact": 20,
+   "emitted": 13,
+   "layers": 17,
+   "tok_s": 40.3,
+   "e2e_ms": 367.2,
+   "series": "vec2 eager"
+  },
+  {
+   "machine": "vectorized, 2 lanes",
+   "path": "CUDA-graph",
+   "exact": 20,
+   "emitted": 13,
+   "layers": 17,
+   "tok_s": 89.3,
+   "e2e_ms": 340.2,
+   "series": "vec2 CUDA-graph"
+  }
+ ],
+ "totals": {
+  "digits_total_runs": 120,
+  "digits_runs": 120,
+  "digits_exact": 120,
+  "general_runs": 72,
+  "general_exact": 72,
+  "page_runs": 3454,
+  "page_mismatches": 0,
+  "paged_digits_exact": 118,
+  "paged_digits_total": 118
+ }
+}

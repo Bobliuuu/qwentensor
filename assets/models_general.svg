@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 980 460" width="980" height="460" role="img" aria-label="Bit-exact runs on real Qwen3.5 (A100, bf16)">
+<rect width="980" height="460" rx="16" fill="#0b0f17"/>
+<text x="32" y="44" font-family="ui-sans-serif,system-ui,-apple-system,'Segoe UI',Helvetica,Arial,sans-serif" font-weight="700" font-size="22" fill="#e6edf6">Bit-exact runs on real Qwen3.5 (A100, bf16)</text>
+<text x="32" y="68" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="14" fill="#8a98ad">digits MLP: 40 runs; general: 4 programs x 6 inputs = 24 runs; exact count shown</text>
+<line x1="70" x2="950" y1="372" y2="372" stroke="#263044"/><text x="60" y="376" text-anchor="end" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="12" fill="#8a98ad">0</text>
+<line x1="70" x2="950" y1="304" y2="304" stroke="#263044"/><text x="60" y="308" text-anchor="end" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="12" fill="#8a98ad">12</text>
+<line x1="70" x2="950" y1="236" y2="236" stroke="#263044"/><text x="60" y="240" text-anchor="end" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="12" fill="#8a98ad">25</text>
+<line x1="70" x2="950" y1="168" y2="168" stroke="#263044"/><text x="60" y="172" text-anchor="end" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="12" fill="#8a98ad">38</text>
+<line x1="70" x2="950" y1="100" y2="100" stroke="#263044"/><text x="60" y="104" text-anchor="end" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="12" fill="#8a98ad">50</text>
+<rect x="182.7" y="154.4" width="31.0" height="217.6" rx="4" fill="#27c8e8"/>
+<text x="198.2" y="148.4" text-anchor="middle" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="12" fill="#e6edf6">40</text>
+<rect x="216.7" y="241.4" width="31.0" height="130.6" rx="4" fill="#ff6b6b"/>
+<text x="232.2" y="235.4" text-anchor="middle" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="12" fill="#e6edf6">24</text>
+<text x="217" y="394" text-anchor="middle" font-family="ui-sans-serif,system-ui,-apple-system,'Segoe UI',Helvetica,Arial,sans-serif" font-size="14" fill="#e6edf6">Qwen3.5-0.8B</text>
+<rect x="476.0" y="154.4" width="31.0" height="217.6" rx="4" fill="#27c8e8"/>
+<text x="491.5" y="148.4" text-anchor="middle" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="12" fill="#e6edf6">40</text>
+<rect x="510.0" y="241.4" width="31.0" height="130.6" rx="4" fill="#ff6b6b"/>
+<text x="525.5" y="235.4" text-anchor="middle" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="12" fill="#e6edf6">24</text>
+<text x="510" y="394" text-anchor="middle" font-family="ui-sans-serif,system-ui,-apple-system,'Segoe UI',Helvetica,Arial,sans-serif" font-size="14" fill="#e6edf6">Qwen3.5-2B</text>
+<rect x="769.3" y="154.4" width="31.0" height="217.6" rx="4" fill="#27c8e8"/>
+<text x="784.8" y="148.4" text-anchor="middle" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="12" fill="#e6edf6">40</text>
+<rect x="803.3" y="241.4" width="31.0" height="130.6" rx="4" fill="#ff6b6b"/>
+<text x="818.8" y="235.4" text-anchor="middle" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="12" fill="#e6edf6">24</text>
+<text x="803" y="394" text-anchor="middle" font-family="ui-sans-serif,system-ui,-apple-system,'Segoe UI',Helvetica,Arial,sans-serif" font-size="14" fill="#e6edf6">Qwen3.5-4B</text>
+<rect x="70" y="416" width="14" height="14" rx="3" fill="#27c8e8"/><text x="90" y="428" font-family="ui-sans-serif,system-ui,-apple-system,'Segoe UI',Helvetica,Arial,sans-serif" font-size="13" fill="#8a98ad">digits MLP</text>
+<rect x="189.0" y="416" width="14" height="14" rx="3" fill="#ff6b6b"/><text x="209.0" y="428" font-family="ui-sans-serif,system-ui,-apple-system,'Segoe UI',Helvetica,Arial,sans-serif" font-size="13" fill="#8a98ad">general (4 programs)</text>
+<text x="948" y="446" text-anchor="end" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="12" fill="#8a98ad">source: results/derived/readme_data.json · higher is better</text>
+</svg>

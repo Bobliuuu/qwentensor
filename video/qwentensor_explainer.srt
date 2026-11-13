@@ -1,0 +1,148 @@
+1
+00:00:00,400 --> 00:00:01,093
+qwentensor.
+
+2
+00:00:01,093 --> 00:00:06,954
+Write a small PyTorch network, quantize it to five bit integers, and run it inside Qwen three
+
+3
+00:00:06,954 --> 00:00:09,979
+point five, with no GPU kernels and no training.
+
+4
+00:00:09,979 --> 00:00:11,933
+The program is just the prompt.
+
+5
+00:00:12,930 --> 00:00:17,059
+The qwenTPU project showed that Qwen's layers can hold an integer compute array.
+
+6
+00:00:17,059 --> 00:00:21,549
+But that machine was fixed: one matrix vector product, or one hard coded chain of them.
+
+7
+00:00:21,549 --> 00:00:26,400
+qwentensor asks whether the program itself can live in the prompt, so that swapping the prompt
+
+8
+00:00:26,400 --> 00:00:27,329
+swaps the network.
+
+9
+00:00:28,330 --> 00:00:33,424
+A torch module goes through the torch f x frontend into a float graph, then post training
+
+10
+00:00:33,424 --> 00:00:38,116
+quantization, with optional quantization aware fine tuning, into an integer graph.
+
+11
+00:00:38,116 --> 00:00:43,439
+That graph has a bit exact numpy golden, and an executor that writes the schedule, successors
+
+12
+00:00:43,439 --> 00:00:45,785
+masks and shifts as tokens in the prompt.
+
+13
+00:00:45,785 --> 00:00:48,189
+The host then only runs argmax and append.
+
+14
+00:00:49,190 --> 00:00:53,086
+In practice, you call qt dot compile on a module with calibration data.
+
+15
+00:00:53,086 --> 00:00:58,189
+The result runs a batch, and asserts that what the machine emitted equals the numpy reference
+
+16
+00:00:58,189 --> 00:00:58,847
+bit for bit.
+
+17
+00:00:59,850 --> 00:01:06,206
+On real Qwen three point five models on an A100, the digits network ran exact 120 times out of
+
+18
+00:01:06,206 --> 00:01:11,075
+120, across the zero point eight, two and four billion parameter models.
+
+19
+00:01:11,075 --> 00:01:14,117
+Every emitted token matched the numpy golden.
+
+20
+00:01:15,120 --> 00:01:21,485
+A second test compiled one machine and ran four different programs on it, six inputs each
+
+21
+00:01:21,485 --> 00:01:23,273
+changing only the prompt.
+
+22
+00:01:23,273 --> 00:01:29,709
+That is 24 of 24 exact on the zero point eight B model, and the same on the two and four B
+
+23
+00:01:29,709 --> 00:01:30,209
+models.
+
+24
+00:01:30,209 --> 00:01:34,000
+Only the hidden size changes, from 3,072 up to 4,608.
+
+25
+00:01:35,000 --> 00:01:37,816
+Networks larger than one machine run in pages.
+
+26
+00:01:37,816 --> 00:01:43,510
+Each page is a fresh prompt, and the host copies integer outputs from one page into the next.
+
+27
+00:01:43,510 --> 00:01:48,959
+The deep, residual and convolutional networks ran this way, up to 1,320 page runs for the
+
+28
+00:01:48,959 --> 00:01:53,611
+largest convolutional network, with 0 mismatches across all 3,454 page runs.
+
+29
+00:01:54,610 --> 00:02:00,945
+Throughput on the zero point eight B model: with CUDA graphs a token takes 3.25 milliseconds
+
+30
+00:02:00,945 --> 00:02:02,460
+against 13.14 eagerly.
+
+31
+00:02:02,460 --> 00:02:07,143
+That is 4.0 faster per emitted token, or 3.78 inferences per second.
+
+32
+00:02:08,140 --> 00:02:08,916
+Honest limits.
+
+33
+00:02:08,916 --> 00:02:14,071
+One machine holds at most one hundred twenty eight ops and one hundred twenty six columns, so
+
+34
+00:02:14,071 --> 00:02:18,560
+larger networks run in pages, and between pages the host carries the activations.
+
+35
+00:02:18,560 --> 00:02:21,110
+There are no loops or data dependent branches.
+
+36
+00:02:21,110 --> 00:02:25,710
+And the paged and wide networks were verified on the zero point eight B model only.
+
+37
+00:02:26,710 --> 00:02:31,312
+The code, the A100 logs, and the design documents are in the repo.
+

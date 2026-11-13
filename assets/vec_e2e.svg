@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 980 416" width="980" height="416" role="img" aria-label="End-to-end ms per inference by machine and chip path (lower is better)">
+<rect width="980" height="416" rx="16" fill="#0b0f17"/>
+<text x="32" y="44" font-family="ui-sans-serif,system-ui,-apple-system,'Segoe UI',Helvetica,Arial,sans-serif" font-weight="700" font-size="22" fill="#e6edf6">End-to-end ms per inference by machine and chip path (lower is better)</text>
+<text x="171" y="118" text-anchor="end" font-family="ui-sans-serif,system-ui,-apple-system,'Segoe UI',Helvetica,Arial,sans-serif" font-size="15" fill="#8a98ad" font-weight="400">scalar eager</text>
+<rect x="185" y="96" width="645.0" height="30" rx="6" fill="#263044"/>
+<text x="840.0" y="117" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="15" font-weight="700" fill="#e6edf6">680 ms</text>
+<text x="171" y="164" text-anchor="end" font-family="ui-sans-serif,system-ui,-apple-system,'Segoe UI',Helvetica,Arial,sans-serif" font-size="15" fill="#8a98ad" font-weight="400">scalar CUDA-graph</text>
+<rect x="185" y="142" width="251.8" height="30" rx="6" fill="#263044"/>
+<text x="446.8" y="163" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="15" font-weight="700" fill="#e6edf6">266 ms</text>
+<text x="171" y="210" text-anchor="end" font-family="ui-sans-serif,system-ui,-apple-system,'Segoe UI',Helvetica,Arial,sans-serif" font-size="15" fill="#8a98ad" font-weight="400">vec1 eager</text>
+<rect x="185" y="188" width="336.6" height="30" rx="6" fill="#263044"/>
+<text x="531.6" y="209" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="15" font-weight="700" fill="#e6edf6">355 ms</text>
+<text x="171" y="256" text-anchor="end" font-family="ui-sans-serif,system-ui,-apple-system,'Segoe UI',Helvetica,Arial,sans-serif" font-size="15" fill="#8a98ad" font-weight="400">vec1 CUDA-graph</text>
+<rect x="185" y="234" width="194.7" height="30" rx="6" fill="#263044"/>
+<text x="389.7" y="255" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="15" font-weight="700" fill="#e6edf6">205 ms</text>
+<text x="171" y="302" text-anchor="end" font-family="ui-sans-serif,system-ui,-apple-system,'Segoe UI',Helvetica,Arial,sans-serif" font-size="15" fill="#8a98ad" font-weight="400">vec2 eager</text>
+<rect x="185" y="280" width="348.1" height="30" rx="6" fill="#263044"/>
+<text x="543.1" y="301" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="15" font-weight="700" fill="#e6edf6">367 ms</text>
+<text x="171" y="348" text-anchor="end" font-family="ui-sans-serif,system-ui,-apple-system,'Segoe UI',Helvetica,Arial,sans-serif" font-size="15" fill="#8a98ad" font-weight="400">vec2 CUDA-graph</text>
+<rect x="185" y="326" width="322.5" height="30" rx="6" fill="#263044"/>
+<text x="517.5" y="347" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="15" font-weight="700" fill="#e6edf6">340 ms</text>
+<text x="948" y="402" text-anchor="end" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="12" fill="#8a98ad">source: results/derived/readme_data.json · lower is better</text>
+</svg>

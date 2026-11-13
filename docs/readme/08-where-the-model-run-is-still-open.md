@@ -1,0 +1,2 @@
+* `scripts/gpu_run.py digits`, `general`, `residual`, `throughput`, `stream`, `wide` and `wide784` and `scripts/gpu_vec.py exact`, `general` and `bench` are done on 0.8B, and `digits` and `general` also on 2B and 4B (see Status). Still open on the real model: a machine larger than 58 columns, in-model weight streaming (the host carries activations between pages), the paged and wide networks and throughput on 2B and 4B, and the vectorized machine with wide neurons.
+* Not covered by the IR and how it could be: [docs/DESIGN.md](docs/DESIGN.md) section 10.

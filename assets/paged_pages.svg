@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 980 462" width="980" height="462" role="img" aria-label="Page runs per paged network, all exact (both readouts)">
+<rect width="980" height="462" rx="16" fill="#0b0f17"/>
+<text x="32" y="44" font-family="ui-sans-serif,system-ui,-apple-system,'Segoe UI',Helvetica,Arial,sans-serif" font-weight="700" font-size="22" fill="#e6edf6">Page runs per paged network, all exact (both readouts)</text>
+<text x="153" y="118" text-anchor="end" font-family="ui-sans-serif,system-ui,-apple-system,'Segoe UI',Helvetica,Arial,sans-serif" font-size="15" fill="#8a98ad" font-weight="400">stream residual</text>
+<rect x="167" y="96" width="70.3" height="30" rx="6" fill="#263044"/>
+<text x="247.3" y="117" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="15" font-weight="700" fill="#e6edf6">140</text>
+<text x="153" y="164" text-anchor="end" font-family="ui-sans-serif,system-ui,-apple-system,'Segoe UI',Helvetica,Arial,sans-serif" font-size="15" fill="#8a98ad" font-weight="400">stream deep</text>
+<rect x="167" y="142" width="100.5" height="30" rx="6" fill="#263044"/>
+<text x="277.5" y="163" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="15" font-weight="700" fill="#e6edf6">200</text>
+<text x="153" y="210" text-anchor="end" font-family="ui-sans-serif,system-ui,-apple-system,'Segoe UI',Helvetica,Arial,sans-serif" font-size="15" fill="#8a98ad" font-weight="400">stream cnn</text>
+<rect x="167" y="188" width="361.6" height="30" rx="6" fill="#263044"/>
+<text x="538.6" y="209" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="15" font-weight="700" fill="#e6edf6">720</text>
+<text x="153" y="256" text-anchor="end" font-family="ui-sans-serif,system-ui,-apple-system,'Segoe UI',Helvetica,Arial,sans-serif" font-size="15" fill="#8a98ad" font-weight="400">wide residual</text>
+<rect x="167" y="234" width="140.6" height="30" rx="6" fill="#263044"/>
+<text x="317.6" y="255" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="15" font-weight="700" fill="#e6edf6">280</text>
+<text x="153" y="302" text-anchor="end" font-family="ui-sans-serif,system-ui,-apple-system,'Segoe UI',Helvetica,Arial,sans-serif" font-size="15" fill="#8a98ad" font-weight="400">wide deep</text>
+<rect x="167" y="280" width="371.7" height="30" rx="6" fill="#263044"/>
+<text x="548.7" y="301" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="15" font-weight="700" fill="#e6edf6">740</text>
+<text x="153" y="348" text-anchor="end" font-family="ui-sans-serif,system-ui,-apple-system,'Segoe UI',Helvetica,Arial,sans-serif" font-size="15" fill="#8a98ad" font-weight="400">wide cnn</text>
+<rect x="167" y="326" width="663.0" height="30" rx="6" fill="#263044"/>
+<text x="840.0" y="347" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="15" font-weight="700" fill="#e6edf6">1,320</text>
+<text x="153" y="394" text-anchor="end" font-family="ui-sans-serif,system-ui,-apple-system,'Segoe UI',Helvetica,Arial,sans-serif" font-size="15" fill="#8a98ad" font-weight="400">wide784</text>
+<rect x="167" y="372" width="27.1" height="30" rx="6" fill="#263044"/>
+<text x="204.1" y="393" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="15" font-weight="700" fill="#e6edf6">54</text>
+<text x="948" y="448" text-anchor="end" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="12" fill="#8a98ad">source: results/derived/readme_data.json · higher is better</text>
+</svg>

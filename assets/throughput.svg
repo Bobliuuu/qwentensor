@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 980 232" width="980" height="232" role="img" aria-label="Digits MLP on Qwen3.5-0.8B (A100): emitted tokens per second">
+<rect width="980" height="232" rx="16" fill="#0b0f17"/>
+<text x="32" y="44" font-family="ui-sans-serif,system-ui,-apple-system,'Segoe UI',Helvetica,Arial,sans-serif" font-weight="700" font-size="22" fill="#e6edf6">Digits MLP on Qwen3.5-0.8B (A100): emitted tokens per second</text>
+<text x="138" y="118" text-anchor="end" font-family="ui-sans-serif,system-ui,-apple-system,'Segoe UI',Helvetica,Arial,sans-serif" font-size="15" fill="#8a98ad" font-weight="400">eager</text>
+<rect x="152" y="96" width="167.9" height="30" rx="6" fill="#263044"/>
+<text x="329.9" y="117" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="15" font-weight="700" fill="#e6edf6">76 tok/s</text>
+<text x="138" y="164" text-anchor="end" font-family="ui-sans-serif,system-ui,-apple-system,'Segoe UI',Helvetica,Arial,sans-serif" font-size="15" fill="#e6edf6" font-weight="700">CUDA-graph</text>
+<rect x="152" y="142" width="678.0" height="30" rx="6" fill="#27c8e8"/>
+<text x="840.0" y="163" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="15" font-weight="700" fill="#e6edf6">307 tok/s</text>
+<text x="948" y="218" text-anchor="end" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="12" fill="#8a98ad">source: results/derived/readme_data.json · higher is better</text>
+</svg>

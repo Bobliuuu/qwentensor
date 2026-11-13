@@ -23,3 +23,6 @@ known_hosts
 vast_api_key
 sw.sh
 *.local.sh
+
+# README/video generation (video-readme-maker)
+video/.render/
